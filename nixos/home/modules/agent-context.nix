@@ -85,14 +85,19 @@
 
   # Long-running builds and benchmarks
 
-  Never kick off work that saturates the machine unless the user asked for it.
-  Whole-project builds, cold `cargo`/`nix` builds, full test suites and
-  benchmark sweeps can pin every core for tens of minutes and make the host
-  unusable for the person sitting at it. Wanting to verify a change is not
-  authorization to spend the user's CPU: build the narrowest target that
-  actually tests the claim, and ask before anything broader. Prefer a single
-  module or one focused target over a whole library, and say what it will
-  cost before starting. Backgrounding does not make it cheaper — it only
-  hides it. If a build must run long, tell the user up front rather than
-  discovering the cost together afterwards.
+  Ask before starting work that will occupy the machine for a long time:
+  whole-project builds, cold `cargo`/`nix` builds, full test suites,
+  benchmark sweeps. Wanting to verify a change is not authorization to spend
+  the user's time — build the narrowest target that actually tests the claim,
+  say what it will cost before starting, and get agreement before anything
+  broader. Backgrounding does not make it cheaper, it only hides it.
+
+  The gate is permission, never throttling. Once work is asked for, run it at
+  the machine's full width: leave `-j`/`--jobs`, `--test-threads`,
+  `RAYON_NUM_THREADS` and friends at their defaults. Never quietly cap
+  parallelism to be polite — it makes the work take longer for no benefit,
+  and on a benchmark it silently invalidates the numbers. The dev VM is given
+  all 24 logical CPUs deliberately, and CPUWeight on the microvm@dev unit
+  already lets host UI processes outbid VM threads, so throttling by hand
+  buys nothing the system isn't handling.
 ''
