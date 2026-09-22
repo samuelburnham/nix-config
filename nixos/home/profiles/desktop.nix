@@ -65,7 +65,6 @@
         "GH_TOKEN"
         "NIX_CONFIG"
         "BENCHER_API_KEY"
-        "TF_VAR_runs_on_license_key"
       ];
       ProxyUseFdpass = "yes";
       CheckHostIP = "no";

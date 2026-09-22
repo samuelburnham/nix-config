@@ -418,8 +418,7 @@ in
           };
 
           # GH_TOKEN (gh api), NIX_CONFIG (private flake-input access-tokens),
-          # BENCHER_API_KEY (bencher CLI), TF_VAR_runs_on_license_key (the
-          # RunsOn license terraform-server reads), and the AWS_* keys are forwarded
+          # BENCHER_API_KEY (bencher CLI), and the AWS_* keys are forwarded
           # per-session over ssh from the host, which holds the sops-decrypted
           # values; the VM stores no copy. The AWS pair carried here is the
           # READ-ONLY key (terraform plan / describe only) — the ssh-dev-vm
@@ -429,7 +428,6 @@ in
             "GH_TOKEN"
             "NIX_CONFIG"
             "BENCHER_API_KEY"
-            "TF_VAR_runs_on_license_key"
             "AWS_ACCESS_KEY_ID"
             "AWS_SECRET_ACCESS_KEY"
           ];

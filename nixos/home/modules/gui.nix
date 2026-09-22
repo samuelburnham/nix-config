@@ -78,7 +78,6 @@
         export GH_TOKEN="$(cat /run/secrets/gh-token 2>/dev/null)"
         export NIX_CONFIG="$(cat /run/secrets/rendered/nix-access-tokens 2>/dev/null)"
         [ -r /run/secrets/bencher-key ] && export BENCHER_API_KEY="$(cat /run/secrets/bencher-key)"
-        [ -r /run/secrets/runs-on-license-key ] && export TF_VAR_runs_on_license_key="$(cat /run/secrets/runs-on-license-key)"
         # Give the VM the READ-ONLY AWS pair only, never the host's write
         # creds. Set unconditionally with a fallback so a missing RO secret
         # fails closed (empty → no usable creds in the VM) instead of leaking

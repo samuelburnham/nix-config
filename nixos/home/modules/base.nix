@@ -323,9 +323,6 @@ in
       [ -r /run/secrets/aws-secret-access-key ] && export AWS_SECRET_ACCESS_KEY="$(cat /run/secrets/aws-secret-access-key)"
       # Bencher CLI API key — also forwarded into the dev microvm.
       [ -r /run/secrets/bencher-key ] && export BENCHER_API_KEY="$(cat /run/secrets/bencher-key)"
-      # RunsOn license, as the Terraform variable terraform-server reads
-      # (runs_on_license_key); also forwarded into the dev microvm.
-      [ -r /run/secrets/runs-on-license-key ] && export TF_VAR_runs_on_license_key="$(cat /run/secrets/runs-on-license-key)"
       # GCP disabled for now — re-enable with the gcp-credentials secret in host.nix.
       # [ -r /run/secrets/gcp-credentials ] && export GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/gcp-credentials
       # Ignore C-d at an empty prompt so a misclick doesn't exit bash (and
