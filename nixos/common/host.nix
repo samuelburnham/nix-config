@@ -194,6 +194,15 @@
         mode = "0400";
         owner = username;
       };
+      # RunsOn license for the self-hosted CI runners in terraform-server.
+      # Read by the shell rc and exported as TF_VAR_runs_on_license_key, so
+      # Terraform picks it up without a tfvars file. Also forwarded into the
+      # dev microvm by ssh-dev-vm: the key only entitles use of the licensed
+      # product, and the VM needs it to `terraform plan` the RunsOn stack.
+      runs-on-license-key = {
+        mode = "0400";
+        owner = username;
+      };
       # GCP disabled for now — no service-account key yet. Re-enable once
       # `gcp-credentials` is added to secrets.yaml (and the export in base.nix).
       # gcp-credentials = {
