@@ -19,6 +19,12 @@
   # (see dev-vm.nix). Overrides base.nix's prompting default.
   programs.claude-code.settings.permissions.defaultMode = "auto";
 
+  # The bench box installs the home-manager-setup helper into ~/.local/bin.
+  # Ubuntu's stock ~/.profile put that directory on PATH, but activation
+  # replaces that file, so keep it on PATH here or the helper cannot be
+  # re-run by name to pull updates.
+  home.sessionPath = [ "$HOME/.local/bin" ];
+
   home.packages = [
     inputs.self.packages.${pkgs.system}.nvim
   ];
