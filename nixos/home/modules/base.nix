@@ -14,29 +14,76 @@
   ...
 }:
 let
+  # release_3.7d fixes an infinite redraw loop after resizing in copy mode
+  # and stale popup ranges: https://github.com/tmux/tmux/issues/5510.
+  # Keep the maintenance branch pinned until these fixes ship in nixpkgs.
   tmuxLatest = pkgs-unstable.tmux.overrideAttrs (_: {
-    version = "3.7c";
+    version = "3.7d";
     src = pkgs.fetchFromGitHub {
       owner = "tmux";
       repo = "tmux";
-      rev = "3.7c";
-      hash = "sha256-TpZXTeXKQv6MV1vAPu5MIT52d3Pl6dYcOReZa7QANZY=";
+      rev = "e9634d40749a5ae330aabf5aa46a81505b094a6b";
+      hash = "sha256-kPhda62XE7BgFJwvGCY8mhPJnSAtcn+R/919gN5aYQ0=";
     };
   });
 
-  # Patched copy of tmux-assistant-resurrect with two fixes for this setup.
-  #
-  # (1) plugin-dir accumulation: the claude launcher (claude.nix) always
-  #     prepends `--plugin-dir`, and resurrect saves each pane's full argv and
-  #     replays it verbatim, so a resumed command gained one more `--plugin-dir`
-  #     every reboot. Stripping it from the saved args in extract_cli_args lets
-  #     the launcher re-add exactly one; the count self-heals on the next restore.
-  #
-  # (2) stale session ids: resurrect records a session id at SessionStart, but
-  #     Claude keeps a transcript only for sessions with content and prunes old
-  #     ones, so a saved id can outlive its transcript and `--resume` then fails
-  #     with "No conversation found". _claude_resume_cmd checks the transcript
-  #     exists first, otherwise warning and launching a fresh claude in the pane.
+  # Resurrect cannot restore tmux's read-only last-attached timestamps.
+  # A writable session option tracks the saved order and subsequent visits.
+  seshWithSessionOrder = pkgs.sesh.overrideAttrs (old: {
+    postPatch = (old.postPatch or "") + ''
+      substituteInPlace tmux/list.go \
+        --replace-fail '"#{session_last_attached}"' \
+          '"#{?@sesh-last-attached,#{@sesh-last-attached},#{session_last_attached}}"'
+    '';
+  });
+
+  tmuxSessionOrder = pkgs.writeShellScriptBin "tmux-session-order" ''
+    set -eo pipefail
+    export PATH="${lib.makeBinPath [ tmuxLatest pkgs.coreutils pkgs.gawk ]}:$PATH"
+    source ${pkgs.tmuxPlugins.resurrect}/share/tmux-plugins/resurrect/scripts/helpers.sh
+
+    case "$1" in
+      save)
+        # Extra records are ignored by resurrect, but participate in its
+        # snapshot comparison and retention alongside the pane layout.
+        ${seshWithSessionOrder}/bin/sesh list -t |
+          while IFS= read -r session; do
+            printf 'sesh-order\t%s\n' "$session"
+          done >> "$2"
+        ;;
+      restore)
+        snapshot="$(last_resurrect_file)"
+        [ -r "$snapshot" ] || exit 0
+        mapfile -t sessions < <(awk -F '\t' '$1 == "sesh-order" {print $2}' "$snapshot")
+        [ "''${#sessions[@]}" -gt 0 ] || exit 0
+        rank=''${#sessions[@]}
+        for session in "''${sessions[@]}"; do
+          # Distinct positive ranks preserve the saved order, including
+          # timestamp ties. New attaches increment the shared counter.
+          while IFS=$'\t' read -r id name; do
+            if [ "$name" = "$session" ]; then
+              tmux set-option -t "$id" @sesh-last-attached "$rank"
+              break
+            fi
+          done < <(tmux list-sessions -F $'#{session_id}\t#{session_name}')
+          rank=$((rank - 1))
+        done
+        tmux set-option -g @sesh-recency "''${#sessions[@]}"
+        ;;
+      init)
+        rank=$(tmux list-sessions -F '#{?@sesh-last-attached,#{@sesh-last-attached},#{session_last_attached}}' 2>/dev/null |
+          awk 'BEGIN {max = 0} $1 > max {max = $1} END {printf "%.0f", max}' || true)
+        tmux set-option -g @sesh-recency "''${rank:-0}"
+        ;;
+      *)
+        echo "Usage: tmux-session-order {save SNAPSHOT|restore|init}" >&2
+        exit 2
+        ;;
+    esac
+  '';
+
+  # Claude only retains transcripts with content, and may prune older ones.
+  # A tracked ID can therefore outlive the conversation it names.
   resumeGuardLib = pkgs.writeText "lib-resume-guard.sh" ''
     # Emit the command the restore hook sends to a pane: a normal --resume when
     # the session's transcript still exists, else a warning then a fresh claude.
@@ -55,19 +102,83 @@ let
     }
   '';
   tmux-assistant-resurrect-scripts =
-    pkgs.runCommand "tmux-assistant-resurrect-patched" { } ''
+    pkgs.runCommand "tmux-assistant-resurrect-patched" { nativeBuildInputs = [ pkgs.patch ]; } ''
       cp -r ${inputs.tmux-assistant-resurrect} "$out"
       chmod -R u+w "$out"
+      patch -d "$out" -p1 < ${./tmux/assistant.patch}
       cp ${resumeGuardLib} "$out/scripts/lib-resume-guard.sh"
+      cp ${./tmux/codex-process-session.py} "$out/scripts/py/codex_process.py"
 
-      substituteInPlace "$out/scripts/save-assistant-sessions.sh" \
-        --replace-fail "sed -E 's/  +/ /g" "sed -E 's/--plugin-dir +[^ ]+//g; s/  +/ /g"
+      for script in save-assistant-sessions.sh restore-assistant-sessions.sh; do
+        substituteInPlace "$out/scripts/$script" \
+          --replace-fail 'set -euo pipefail' 'set -euo pipefail
+      export PATH="${
+        lib.makeBinPath [
+          pkgs.bash
+          pkgs.coreutils
+          pkgs.findutils
+          pkgs.gawk
+          pkgs.gnugrep
+          pkgs.gnused
+          pkgs.gnutar
+          pkgs.gzip
+          pkgs.jq
+          pkgs.procps
+          pkgs.python3
+          tmuxLatest
+          pkgs.util-linux
+        ]
+      }:$PATH"'
+      done
 
       substituteInPlace "$out/scripts/restore-assistant-sessions.sh" \
         --replace-fail 'source "$SCRIPT_DIR/lib-detect.sh"' 'source "$SCRIPT_DIR/lib-detect.sh"; source "$SCRIPT_DIR/lib-resume-guard.sh"' \
         --replace-fail 'resume_cmd="command claude''${safe_cli_args}''${safe_model_arg} --resume ''${safe_sid}"' 'resume_cmd=$(_claude_resume_cmd "command claude''${safe_cli_args}''${safe_model_arg}" "''${safe_sid}" "''${session_id}" "''${cwd}")' \
         --replace-fail 'resume_cmd="command claude --resume ''${safe_sid}"' 'resume_cmd=$(_claude_resume_cmd "command claude" "''${safe_sid}" "''${session_id}" "''${cwd}")'
     '';
+
+  assistantResume = pkgs.writeShellScriptBin "assistant-resume" ''
+    set -euo pipefail
+    export PATH="${lib.makeBinPath [ tmuxLatest pkgs.coreutils pkgs.util-linux ]}:$PATH"
+    source ${tmux-assistant-resurrect-scripts}/scripts/lib-detect.sh
+    boot=0
+    if [ "''${1:-}" = --boot ]; then
+      boot=1
+      [ "$(tmux show-option -gqv @assistant-layout-restored)" = on ] || exit 0
+      [ "$(tmux show-option -gqv @assistants_resumed)" != on ] || exit 0
+      [ -n "$(tmux list-clients -F '#{client_name}')" ] || exit 0
+    fi
+    directory="$(resurrect_data_dir)"
+    mkdir -p "$directory"
+    # Both layout completion and the first client attach can request a replay.
+    exec 200>"$directory/assistant-restore.lock"
+    flock -n 200 || exit 0
+    if [ "$boot" = 1 ]; then
+      [ "$(tmux show-option -gqv @assistants_resumed)" != on ] || exit 0
+    fi
+    export TMUX_ASSISTANT_FAST_RESTORE=1
+    bash ${tmux-assistant-resurrect-scripts}/scripts/restore-assistant-sessions.sh
+    tmux set-option -g @assistants_resumed on
+  '';
+
+  tmuxRestoreState = pkgs.writeShellScriptBin "tmux-restore-state" ''
+    set -euo pipefail
+    export PATH="${lib.makeBinPath [ tmuxLatest ]}:$PATH"
+    ${tmuxSessionOrder}/bin/tmux-session-order restore
+    tmux set-option -g @assistant-layout-restored on
+    tmux set-option -gu @assistants_resumed
+    tmux run-shell -b '${assistantResume}/bin/assistant-resume --boot'
+  '';
+
+  restoreHooks = ''
+    set -g @assistant-resurrect-claude-drop-flags '--plugin-dir'
+    set -g @resurrect-hook-post-save-layout '${tmuxSessionOrder}/bin/tmux-session-order save'
+    set -g @resurrect-hook-post-save-all "bash '${tmux-assistant-resurrect-scripts}/scripts/save-assistant-sessions.sh'"
+    set -g @resurrect-hook-post-restore-all '${tmuxRestoreState}/bin/tmux-restore-state'
+    run-shell '${tmuxSessionOrder}/bin/tmux-session-order init'
+    set-hook -g client-session-changed[100] { set-option -gF @sesh-recency '#{e|+|:#{@sesh-recency},1}' ; set-option -F @sesh-last-attached '#{@sesh-recency}' }
+    set-hook -g client-attached[0] 'run-shell -b "${assistantResume}/bin/assistant-resume --boot"'
+  '';
 in
 {
 
@@ -80,7 +191,10 @@ in
     ripgrep
     htop
     jq
-    sesh
+    seshWithSessionOrder
+    tmuxSessionOrder
+    assistantResume
+    tmuxRestoreState
     fzf
     # Used by the sesh-picker ctrl-f "find" tab below
     fd
@@ -128,40 +242,13 @@ in
       # attach to its most-recently-active session.
       tmux attach 2>/dev/null && exit 0
 
-      # No server yet — a fresh VM boot. Bring the server up by creating AND
-      # attaching a session (via sesh), NOT a bare `tmux start-server`. A
-      # client MUST be attached while continuum auto-restores: resurrect
-      # selects the session that was active at save time with `switch-client`,
-      # and the assistant hook replays `claude --resume` into its pane — both
-      # silently no-op ("no current client") if the server comes up
-      # client-less. A client-less start-server therefore restores the pane
-      # layout (that part needs no client) but leaves claude dead and drops
-      # you in the wrong session. Starting the server with an attached client
-      # lets that same restore switch us to the most-recent session and resume
-      # claude. `sesh connect` also creates the fallback ~/repos session when
-      # there's nothing saved to restore (first-ever boot).
+      # Continuum needs an attached client to select the saved active session.
+      # Sesh supplies that client and a fallback session for the first boot.
       exec sesh connect ~/repos
     '')
-    # Replay saved Claude sessions into the current tmux layout — the same
-    # script resurrect's post-restore hook uses. Resumes claude in any
-    # restored-but-blank pane that had one (it skips panes already running
-    # claude). Run by hand anytime, and fired automatically on first client
-    # attach via claude-resume-boot below.
+    # Keep the original command available for existing shell workflows.
     (pkgs.writeShellScriptBin "claude-resume" ''
-      exec bash ${tmux-assistant-resurrect-scripts}/scripts/restore-assistant-sessions.sh
-    '')
-    # The client-attached tmux hook (see extraConfig) runs this on every
-    # attach; the guard makes it fire only ONCE per server — i.e. the first
-    # time you connect after a fresh boot, when the layout is restored and a
-    # client is finally present. continuum's own post-restore hook can't do
-    # this: it runs client-less during restore, where resurrect's
-    # switch-client and the assistant replay both silently no-op, so the
-    # panes come back but claude doesn't. The once-guard also stops a plain
-    # reattach from relaunching an assistant you deliberately closed.
-    (pkgs.writeShellScriptBin "claude-resume-boot" ''
-      [ -n "$(tmux show-option -gqv @assistants_resumed 2>/dev/null)" ] && exit 0
-      tmux set-option -g @assistants_resumed on
-      exec claude-resume
+      exec ${assistantResume}/bin/assistant-resume "$@"
     '')
   ];
 
@@ -415,7 +502,7 @@ in
 
   programs.tmux = {
     enable = true;
-    # 3.7c using unstable's package definition for `command-prompt -e`
+    # 3.7+ using unstable's package definition for `command-prompt -e`
     # (the prefix+W worktree prompt below): -e makes an empty entry cancel
     # instead of running the command with a blank argument. Shared by host
     # and VM alike since this is base.nix.
@@ -426,7 +513,12 @@ in
     keyMode = "vi";
     plugins = with pkgs.tmuxPlugins; [
       sensible
-      resurrect
+      {
+        plugin = resurrect;
+        # Continuum can finish restoring while later plugins still load.
+        # Save/restore hooks must already exist when that background job starts.
+        extraConfig = restoreHooks;
+      }
       {
         # @continuum-restore MUST be set BEFORE continuum's run-shell. At
         # load the plugin backgrounds continuum_restore.sh, which reads
@@ -682,23 +774,6 @@ in
       # the note there); this block only re-adds the save trigger to
       # status-right after catppuccin overwrote it.
 
-      # tmux-assistant-resurrect: persist AI-assistant sessions across restarts.
-      # The post-save hook records each pane's Claude session id (via the
-      # SessionStart hook wired in claude.nix, keyed by the claude PID so two
-      # conversations in one directory don't collide); the post-restore hook
-      # relaunches `claude --resume <id>` in each restored pane. Assistants are
-      # deliberately kept OUT of @resurrect-processes — the hooks own resuming,
-      # and listing them there would instead start a bare session-less claude.
-      set -g @resurrect-hook-post-save-all "bash '${tmux-assistant-resurrect-scripts}/scripts/save-assistant-sessions.sh'"
-      set -g @resurrect-hook-post-restore-all "bash '${tmux-assistant-resurrect-scripts}/scripts/restore-assistant-sessions.sh'"
-
-      # The post-restore hook above is continuum's intended path for resuming
-      # claude, but it fires client-less during boot restore and silently
-      # no-ops there (verified). Resume on the first client attach instead —
-      # layout already restored, a client finally present — via the guarded
-      # claude-resume-boot wrapper (base.nix packages). run-shell -b so the
-      # ~2s scan doesn't block the attach.
-      set-hook -g client-attached 'run-shell -b claude-resume-boot'
     '';
   };
 
