@@ -338,7 +338,7 @@ in
       # Memory
 
       Record durable facts, preferences, and operational lessons as edits to
-      THIS file (`~/repos/dotfiles/nixos/home/modules/claude.nix`) — add a short
+      THIS file (`~/repos/nix-config/home/modules/claude.nix`) — add a short
       topical section below. A lesson that applies to any coding agent, not just
       Claude, goes in `agent-context.nix` instead, which this file appends to.
       Do NOT write them to `~/.claude/projects/*/memory/`: that path is
@@ -346,6 +346,20 @@ in
       so it is lost on reprovision. Edits here need a `home-manager switch` to
       take effect. Keep entries terse — everything here loads into every
       session's context.
+
+      # Temp files outside the sandbox
+
+      `$TMPDIR` is set only inside the Bash sandbox. A command run with the
+      sandbox disabled sees it unset, so `$TMPDIR/x` becomes `/x` and fails
+      with permission denied; use `mktemp -d` or the session scratchpad path
+      there instead.
+
+      # Build logic ownership
+
+      Nix-only build logic stays in `flake.nix`. Never change a repo's native
+      build files (`lakefile.lean`, `Cargo.toml`, build scripts) to make the
+      Nix packaging simpler or faster; patch or wrap them from the flake
+      instead, as ix's flake already does with `postPatch`.
     '';
   };
 

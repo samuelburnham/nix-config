@@ -4,9 +4,8 @@
 # Test lean.nvim with goto-def, infoview, and hover, `,` local leader key maybe should be unified with `<leader>l`
 # Test `blink-cmp`
 # Add some functionality borrowed from tmux like session persistence, SSH, and running a Neovim systemd server on startup. See https://kraust.github.io/posts/neovim-is-a-multiplexer/
-# Complete leader keybindings for common tasks (see Emacs config)
+# Complete leader keybindings for common tasks
 # Obsidian.nvim or Neorg for note taking and project planning, with https://github.com/MeanderingProgrammer/render-markdown.nvim
-# See Emacs config for more options
 # Keep an eye on Ghostty integration with Neovim, such as https://github.com/neovim/neovim/issues/33155 which would fix multiline copy-paste from `:terminal`
 # and probably other bugs like squashed text on window resize
 # awesome-nvf configurations:

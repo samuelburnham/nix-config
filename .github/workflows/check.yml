@@ -34,4 +34,4 @@ jobs:
       # Eval-only: catches syntax errors, bad option names, and broken
       # module wiring across both hosts, the microvm guest, and the
       # standalone HM/nvim outputs without building any derivations.
-      - run: nix flake check --no-build ./nixos
+      - run: nix flake check --no-build .

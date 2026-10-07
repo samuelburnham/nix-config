@@ -889,11 +889,6 @@ in
       hl.bind(mod .. " + Escape", hl.dsp.exec_cmd(
         "pidof wlogout || uwsm app -- ${pkgs.wlogout}/bin/wlogout -L 1200 -R 1200 -T 350 -B 350"))
       hl.bind(mod .. " + X", hl.dsp.window.close())
-      -- hl.dsp.exit() yanks the compositor out from under its clients and
-      -- leaves uwsm's session units to fail unordered; `uwsm stop` brings
-      -- down the whole graphical session cleanly (wiki:
-      -- Configuring/Dispatchers warning).
-      hl.bind(mod .. " + M", hl.dsp.exec_cmd("uwsm stop"))
       hl.bind(mod .. " + E", hl.dsp.exec_cmd(fileManager))
       hl.bind(mod .. " + V", hl.dsp.window.float({ action = "toggle" }))
       hl.bind(mod .. " + F", hl.dsp.window.fullscreen({ mode = "maximized" }))
@@ -2072,7 +2067,7 @@ in
         label = "logout";
         # Not `hyprctl dispatch exit` — that kills the compositor out from
         # under uwsm's session units; `uwsm stop` tears the session down in
-        # order (same rationale as the Super+M bind).
+        # order.
         action = "uwsm stop";
         text = "Logout";
         keybind = "e";

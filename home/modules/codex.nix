@@ -94,7 +94,7 @@ in
       # Codex configuration
 
       All Codex configuration changes must be made declaratively in
-      `~/repos/dotfiles/nixos/home/modules/codex.nix`. Never modify
+      `~/repos/nix-config/home/modules/codex.nix`. Never modify
       `~/.codex/config.toml` directly.
     '';
   };

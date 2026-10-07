@@ -22,9 +22,9 @@
   # Renaming this breaks `rebuild` until bootstrapped: `nixos-rebuild
   # switch` resolves `nixosConfigurations.<hostname>` by default, so a
   # new name here must be mirrored in the flake's `nixosConfigurations`
-  # key (nixos/flake.nix) in the same commit. After the rename, run
+  # key (flake.nix) in the same commit. After the rename, run
   # the first switch with the new key explicit, e.g.
-  #   nixos-rebuild switch --flake /home/sam/repos/dotfiles/nixos#newname --sudo
+  #   nixos-rebuild switch --flake /home/sam/repos/nix-config#newname --sudo
   # (or run `sudo hostname newname` first so the default lookup hits
   # the new key). Subsequent `rebuild` invocations work normally.
   networking.hostName = "nixbook";

@@ -111,7 +111,7 @@
         let
           pkgs-unstable = import nixpkgs-unstable { inherit system; };
           # Standalone nvim — same nvf config used inside the dev microvm
-          # and anywhere `nix run github:samuelburnham/dotfiles?dir=nixos#nvim`
+          # and anywhere `nix run github:samuelburnham/nix-config#nvim`
           # is invoked.
           customNeovim =
             (inputs.nvf.lib.neovimConfiguration {
@@ -170,7 +170,7 @@
           # settings only carry it as a best-effort fallback. Install with:
           #   sudo install -Dm0444 -o root -g root \
           #     "$(nix build --no-link --print-out-paths \
-          #        'github:samuelburnham/dotfiles?dir=nixos#claude-managed-settings')" \
+          #        'github:samuelburnham/nix-config#claude-managed-settings')" \
           #     /etc/claude-code/managed-settings.json
           packages.claude-managed-settings =
             (pkgs.formats.json { }).generate "claude-managed-settings.json" {
@@ -248,7 +248,7 @@
           # provisioned via terraform-server, where `sam` is a seeded login
           # alongside the AMI's default `ubuntu` user). Activate on the
           # target with:
-          #   nix run github:samuelburnham/dotfiles?dir=nixos#sam
+          #   nix run github:samuelburnham/nix-config#sam
           homeConfigurations.sam = home-manager.lib.homeManagerConfiguration {
             pkgs = import nixpkgs {
               inherit system;

@@ -134,8 +134,8 @@
   # vim ~/.config/sops/age/keys.txt
   # ```
   # Then paste the contents, save, and rebuild NixOS
-  # Check encrypted file by opening `~/dotfiles/nixos/secrets/secrets.yaml`
-  # Open decrypted file by running `sops ~/dotfiles/nixos/secrets/secrets.yaml`
+  # Check encrypted file by opening `~/repos/nix-config/secrets/secrets.yaml`
+  # Open decrypted file by running `sops ~/repos/nix-config/secrets/secrets.yaml`
   sops = {
     defaultSopsFile = ../secrets/secrets.yaml;
     defaultSopsFormat = "yaml";

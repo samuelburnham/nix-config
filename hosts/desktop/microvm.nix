@@ -275,7 +275,7 @@ in
                 # recreates it empty when the VM next starts, which the rebuild
                 # itself does; no manual stop/start of microvm@dev needed:
                 #   rm /var/lib/microvms/dev/nix-store-overlay.img
-                #   nixos-rebuild switch --flake ~/repos/dotfiles/nixos#nixos
+                #   nixos-rebuild switch --flake ~/repos/nix-config#nixos
                 # After this the persistent Nix DB (nix-var.img) still references
                 # the deleted upper-layer paths; the nix-db-selfheal service
                 # prunes them on the next boot (or `rm nix-var.img` too for a

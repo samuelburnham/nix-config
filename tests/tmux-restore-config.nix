@@ -1,4 +1,4 @@
-# nix eval --impure --json --file nixos/tests/tmux-restore-config.nix
+# nix eval --impure --json --file tests/tmux-restore-config.nix
 let
   flake = builtins.getFlake (toString ../.);
   home = flake.nixosConfigurations.nixos.config.home-manager.users.sam;

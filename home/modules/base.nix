@@ -452,6 +452,7 @@ in
     # each module's format string. Palette values verbatim from
     # github.com/catppuccin/starship.
     settings = {
+      gcloud.disabled = true;
       palette = "catppuccin_mocha";
       palettes.catppuccin_mocha = {
         rosewater = "#f5e0dc";

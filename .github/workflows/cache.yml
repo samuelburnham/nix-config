@@ -46,7 +46,7 @@ jobs:
       - name: Build configuration
         env:
           NIX_TARGET: ${{ matrix.target }}
-        run: nix build --accept-flake-config --no-write-lock-file --print-build-logs "./nixos#$NIX_TARGET"
+        run: nix build --accept-flake-config --no-write-lock-file --print-build-logs ".#$NIX_TARGET"
       # The daemon caches intermediate builds; this also covers substituted roots.
       - name: Push configuration closure
         env:

@@ -1,4 +1,9 @@
-# NixOS Config
+# Nix config
+
+NixOS configurations for the desktop and laptop, the desktop's dev microVM,
+and a standalone Home Manager environment for Ubuntu live in this flake.
+
+The Emacs configuration is preserved on the `emacs` branch as `init.el`.
 
 ## Install
 
@@ -14,19 +19,28 @@
 ```
 - Confirm the settings with `sudo nixos-rebuild switch`
 
-- Run `git clone https://github.com/samuelburnham/dotfiles.git` and `cd dotfiles/nixos`
+- Clone the repository into `~/repos/nix-config`:
 
-- Run `cp /etc/nixos/hardware-configuration.nix .` to get the local hardware config
+  ```sh
+  mkdir -p ~/repos
+  git clone https://github.com/samuelburnham/nix-config.git ~/repos/nix-config
+  cd ~/repos/nix-config
+  ```
 
-- Make sure the hostname in `/etc/nixos/configuration.nix` matches that in `./flake.nix` and `./configuration.nix`
+- Choose the `nixos` output for the desktop or `nixbook` for the laptop. Review
+  the matching `hosts/desktop/hardware-configuration.nix` or
+  `hosts/laptop/hardware-configuration.nix` against the machine's generated
+  `/etc/nixos/hardware-configuration.nix` before activation.
 
-- Run `sudo mv /etc/nixos /etc/nixos.bak` to back up the existing config
+- Activate the desktop configuration (substitute `nixbook` for the laptop):
 
-- Run `sudo ln -s ~/dotfiles/nixos /etc/nixos` to symlink local path so we can track changes in Git and edit without sudo
+  ```sh
+  nixos-rebuild switch --flake ~/repos/nix-config#nixos --sudo
+  ```
 
-- Run `sudo nixos-rebuild switch`
-
-- Remove `/etc/nixos.bak` if desired
+Subsequent updates can use `rebuild`. That command embeds the flake's location;
+if the checkout or flake moves, run the explicit command above once to activate
+the wrapper with the new path. No `/etc/nixos` symlink is needed.
 
 Sources:
 [Enable Nix flakes](https://nixos-and-flakes.thiscute.world/nixos-with-flakes/nixos-with-flakes-enabled#enable-nix-flakes)
@@ -60,7 +74,7 @@ with a seven-day cooldown for version updates. GitHub reads
 The cache is declared in `flake.nix`. To build a system using that configuration:
 
 ```sh
-nix build --accept-flake-config ./nixos#nixosConfigurations.nixos.config.system.build.toplevel
+nix build --accept-flake-config .#nixosConfigurations.nixos.config.system.build.toplevel
 ```
 
 ## Restore /home from backup
@@ -69,6 +83,32 @@ nix build --accept-flake-config ./nixos#nixosConfigurations.nixos.config.system.
 gives a working machine with empty data; restic fills in only what can't be
 regenerated. `/home/sam` is backed up daily to the One Touch drive
 (`services.restic.backups.onetouch`, repo `/mnt/onetouch/NixOS-restic`).
+
+The backup runs as the dedicated `restic` account with systemd's
+`CAP_DAC_READ_SEARCH`, allowing it to read private files without running as root.
+Its filesystem exposes the home directory read-only, the backup destination,
+and its own credential/cache/runtime directories. Git runs separately as `sam`
+in a sandbox that can only read `~/repos`, with no capabilities, host secrets,
+network, or host socket access.
+
+Repositories under `~/repos` honor `.gitignore` and `.git/info/exclude`, including
+linked worktrees and submodules. Global Git ignore files are not consulted.
+Tracked files are retained even when they match ignore rules. Ignored state
+such as an untracked `.env` is **not backed up**. Paths that cannot be encoded
+safely as Restic exclusion patterns are retained with a journal warning. A
+scanner or validation failure prevents backup and pruning.
+
+The exFAT drive uses Sam as its owner and the reserved `restic` group (GID 291)
+for backup writes. After rebuilding with changed mount options, safely unmount
+and reconnect the drive so the new permissions take effect. A disconnected
+drive fails the scheduled run; reconnecting does not automatically retry it.
+Start a retry with `sudo systemctl start restic-backups-onetouch` and inspect
+both `restic-gitignore-onetouch` and `restic-backups-onetouch` in the journal.
+
+Each successful backup/prune run includes a structural `restic check`.
+`restic-onetouch snapshots` and `restic-onetouch check --read-data` also work
+interactively; the latter reads the entire repository and should be run
+periodically when there is time for a full integrity check.
 
 Home-manager owns most of `~` as `/nix/store` symlinks and recreates them on
 activation, so **don't blanket-restore over `~`**: dropping a stale regular file
@@ -86,7 +126,9 @@ Restore selectively instead.
 
 1. Rebuild from the flake first, so home-manager lays down its own dotfiles:
    ```
-   git clone https://github.com/samuelburnham/dotfiles.git && cd dotfiles/nixos
+   mkdir -p ~/repos
+   git clone https://github.com/samuelburnham/nix-config.git ~/repos/nix-config
+   cd ~/repos/nix-config
    sudo nixos-rebuild switch --flake .#<host>
    ```
 2. Get the repo password:
