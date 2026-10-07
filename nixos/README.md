@@ -32,6 +32,37 @@ Sources:
 [Enable Nix flakes](https://nixos-and-flakes.thiscute.world/nixos-with-flakes/nixos-with-flakes-enabled#enable-nix-flakes)
 [Managing config with git](https://nixos-and-flakes.thiscute.world/nixos-with-flakes/other-useful-tips#managing-the-configuration-with-git)
 
+## CI and binary cache
+
+Pushes to `main` run the `cache` workflow, which builds these
+configurations in parallel and uploads their closures to `samuelburnham.cachix.org`:
+
+- `nixosConfigurations.nixos.config.system.build.toplevel`: desktop and dev microVM.
+- `nixosConfigurations.nixbook.config.system.build.toplevel`: laptop.
+- `sam`: standalone home-manager environment, including the `nvim` package.
+
+The workflow uses a repository secret named `CACHIX_AUTH_TOKEN` with write access
+to the cache. Cachix uploads completed derivations during the build, and a final
+push covers the full output closure. The workflow can also be started manually
+from GitHub Actions.
+
+Builds use the committed lockfile and do not activate either system or restart the
+microVM. The separate `check` workflow evaluates the flake on pull requests into
+`main` and pushes to `main`. It also runs `argumentcomputer/ci-workflows`' shared
+workflow linter: actionlint, ShellCheck, pinact verification, and zizmor. Actions
+must use full commit hashes; pinact verifies their version comments.
+
+Dependabot checks GitHub Actions weekly and opens grouped update PRs for `main`,
+with a seven-day cooldown for version updates. GitHub reads
+`.github/dependabot.yml` from the default branch, so that file must also reach
+`main` to enable the updates.
+
+The cache is declared in `flake.nix`. To build a system using that configuration:
+
+```sh
+nix build --accept-flake-config ./nixos#nixosConfigurations.nixos.config.system.build.toplevel
+```
+
 ## Restore /home from backup
 
 **Config comes from nix, state comes from restic.** `git clone` + `nixos-rebuild`

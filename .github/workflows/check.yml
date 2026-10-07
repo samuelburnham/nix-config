@@ -2,6 +2,7 @@ name: check
 
 on:
   pull_request:
+    branches: [main]
   push:
     branches: [main]
 
@@ -13,12 +14,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  workflow-lint:
+    name: Lint workflows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - uses: argumentcomputer/ci-workflows/.github/actions/lint-workflows@2a6b43be08a6dab790e870c1717b79be2d6e70bc
+
   flake-check:
     name: "nixos: nix flake check"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: DeterminateSystems/determinate-nix-action@v3
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - uses: DeterminateSystems/determinate-nix-action@d0c908e6cbe9f89f36ed8205a3ab6f092636916a # v3.23.1
       # Eval-only: catches syntax errors, bad option names, and broken
       # module wiring across both hosts, the microvm guest, and the
       # standalone HM/nvim outputs without building any derivations.

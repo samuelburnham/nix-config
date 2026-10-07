@@ -1,8 +1,8 @@
 {
   description = "NixOS flake config";
 
-  # Binary cache for the standalone outputs (the `sam` home config and nvim),
-  # populated by .github/workflows/cache.yml on every push to `nixos`. Nix
+  # Binary cache for the NixOS systems and standalone home/nvim outputs,
+  # populated by .github/workflows/cache.yml on pushes to `main`. Nix
   # only honours these for trusted users, and prompts before using them unless
   # invoked with --accept-flake-config; the cloud boxes also register the
   # cache in the daemon config, which covers untrusted logins.
