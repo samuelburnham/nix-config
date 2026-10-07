@@ -1,9 +1,0 @@
-version: 3
-rules:
-  # This action has no release tags. Bare full hashes cannot be checked
-  # against a version comment; zizmor still enforces hash pinning.
-  - ignore: true
-    conditions:
-      - expr: |
-          ActionName == "argumentcomputer/ci-workflows/.github/actions/lint-workflows" &&
-          ActionVersion matches "^[0-9a-f]{40}$" && VersionComment == ""
