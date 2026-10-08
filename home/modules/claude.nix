@@ -335,6 +335,12 @@ in
       `~/.claude/` or ask, never the repo. If a task seems to require repo-local
       `.claude/` config, stop and confirm first.
 
+      # nix-config branch
+
+      `main` is the only live branch of `~/repos/nix-config`: commit there, and
+      point anything that pulls the flake (`github:samuelburnham/nix-config/...`)
+      at `main`. The `nixos` branch is a stale ancestor, not a target.
+
       # Memory
 
       Record durable facts, preferences, and operational lessons as edits to
