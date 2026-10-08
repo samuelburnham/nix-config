@@ -3,6 +3,7 @@
 # GUI, no rebuild wrapper.
 {
   pkgs,
+  lib,
   inputs,
   ...
 }:
@@ -24,6 +25,15 @@
   # replaces that file, so keep it on PATH here or the helper cannot be
   # re-run by name to pull updates.
   home.sessionPath = [ "$HOME/.local/bin" ];
+
+  # Only SSH login shells own a tmux client; the generated bashrc already
+  # returns before this for non-interactive shells. Keep the login shell
+  # alive so detaching returns to it without immediately reattaching.
+  programs.bash.initExtra = lib.mkAfter ''
+    if [[ -n ''${SSH_TTY:-} && -z ''${TMUX:-} ]] && shopt -q login_shell; then
+      tmux-resume
+    fi
+  '';
 
   home.packages = [
     inputs.self.packages.${pkgs.system}.nvim
