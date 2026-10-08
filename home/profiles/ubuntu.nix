@@ -26,10 +26,27 @@
   # re-run by name to pull updates.
   home.sessionPath = [ "$HOME/.local/bin" ];
 
+  # Agent forwarding that survives reconnects. sshd creates a fresh agent
+  # socket for every connection and removes it when that connection ends, so
+  # a pane that outlives its connection (anything under tmux) is left holding
+  # a dead path. sshd runs ~/.ssh/rc on every connection, shell or not; it
+  # repoints a fixed link at the current socket, and shells below use the
+  # link, so a pane's agent is whichever connection is live rather than the
+  # one it was born in. With two clients attached, the newer one's agent
+  # serves both.
+  home.file.".ssh/rc".text = ''
+    if [ -n "$SSH_AUTH_SOCK" ]; then
+      ln -sf "$SSH_AUTH_SOCK" "$HOME/.ssh/agent.sock"
+    fi
+  '';
+
   # Only SSH login shells own a tmux client; the generated bashrc already
   # returns before this for non-interactive shells. Keep the login shell
   # alive so detaching returns to it without immediately reattaching.
   programs.bash.initExtra = lib.mkAfter ''
+    if [ -S "$HOME/.ssh/agent.sock" ]; then
+      export SSH_AUTH_SOCK="$HOME/.ssh/agent.sock"
+    fi
     if [[ -n ''${SSH_TTY:-} && -z ''${TMUX:-} ]] && shopt -q login_shell; then
       tmux-resume
     fi
