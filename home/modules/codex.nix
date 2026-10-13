@@ -73,6 +73,7 @@ in
       # default; it has to be declared here.
       model = "gpt-6-astra";
       model_reasoning_effort = "max";
+      model_context_window = 872000;
       approvals_reviewer = "auto_review";
       features.apps = false;
       tui.status_line = [
