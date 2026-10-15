@@ -72,10 +72,12 @@ in
       # config.toml is a store symlink, so `/model` in the TUI cannot save a
       # default; it has to be declared here.
       model = "gpt-6-astra";
-      model_reasoning_effort = "max";
+      model_reasoning_effort = "xhigh";
+      service_tier = "fast";
       model_context_window = 872000;
       approvals_reviewer = "auto_review";
       features.apps = false;
+      features.fast_mode = true;
       tui.status_line = [
         "model-with-reasoning"
         "current-dir"
