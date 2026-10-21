@@ -124,6 +124,8 @@
     ];
   };
 
+  programs.zathura.enable = true;
+
   # Host kitty — escape hatch for when the dev microvm is unhealthy or
   # when you need a terminal that isn't tied to the VM at all.
   programs.kitty = {

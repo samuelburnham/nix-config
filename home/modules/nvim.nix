@@ -140,6 +140,7 @@
     extraPackages = with pkgs; [
       ripgrep
       kitty
+      tex-fmt
     ];
 
     # TODO: Don't make enter select_and_accept completion ever, just use Tab or M-Space to select
@@ -425,6 +426,16 @@
       switch = {
         package = pkgs.vimPlugins.switch-vim;
       };
+      # Compiles via latexmk (,ll) and views the PDF in Zathura (,lv), which
+      # programs.zathura in gui.nix installs on GUI hosts. The plain
+      # `zathura` method focuses windows with xdotool, which is X11-only;
+      # `zathura_simple` keeps SyncTeX forward and inverse search on Wayland.
+      vimtex = {
+        package = pkgs.vimPlugins.vimtex;
+        setup = ''
+          vim.g.vimtex_view_method = "zathura_simple"
+        '';
+      };
     };
     # TODO: Look into optional lean.nvim enhancements
     # https://github.com/lewis6991/satellite.nvim
@@ -626,6 +637,15 @@
     # Leader key
     globals.mapleader = " ";
     keymaps = [
+      {
+        key = "<leader>lf";
+        mode = [ "n" ];
+        lua = true;
+        action = ''
+          function() require("conform").format({ async = true }) end
+        '';
+        desc = "Format buffer";
+      }
       {
         key = "x";
         mode = [ "n" ];
@@ -976,6 +996,8 @@
     lsp = {
       enable = true;
       formatOnSave = true;
+      # Conform handles the format key so it selects the same formatter as save.
+      mappings.format = null;
       inlayHints.enable = true;
       lightbulb.enable = false;
       #lspSignature.enable = true;
@@ -1157,6 +1179,29 @@
         # This breaks when opening files from another directory because direnv hasn't finished loading rust-analyzer yet.
         # The solution is the direnv.nvim autocmd in `extraPlugins`
         enable = false;
+      };
+    };
+
+    # texlab for completion and diagnostics. VimTeX (in extraPlugins) owns
+    # highlighting, since tree-sitter highlighting replaces the syntax groups
+    # its motions and conceal depend on.
+    languages.tex = {
+      enable = true;
+      treesitter.enable = false;
+      format = {
+        enable = true;
+        type = [ "tex-fmt" ];
+      };
+      lsp.enable = true;
+    };
+
+    formatter.conform-nvim.setupOpts = {
+      formatters_by_ft.bib = [ "tex-fmt" ];
+      formatters.tex-fmt = {
+        # Resolve through PATH so a dev shell overrides the bundled fallback.
+        command = lib.mkForce "tex-fmt";
+        # Let tex-fmt.toml control indentation instead of buffer settings.
+        args = [ "--stdin" ];
       };
     };
 
