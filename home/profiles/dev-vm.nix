@@ -63,12 +63,6 @@ in
     "ssh://git@github.com/"
   ];
 
-  # The dev microvm is the isolated sandbox this tooling is meant to run in,
-  # so default to "auto" mode: Claude auto-approves actions it classifies as
-  # safe and still blocks risky ones / suspected prompt injection. This plain
-  # value overrides claude.nix's prompting default; the workstations keep it.
-  programs.claude-code.settings.permissions.defaultMode = "auto";
-
   # `gh api` stays non-prompting here (it is kept out of the shared allow-list
   # in claude.nix): the token forwarded into the VM is the read-only PAT, so
   # `gh api` calls can query GitHub but not write it. Concatenates onto the

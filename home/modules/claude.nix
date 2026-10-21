@@ -2,14 +2,14 @@
 # sandbox, permissions, and hooks. Kept OUT of base.nix and imported only
 # where it's wanted, so it isn't in every closure by default:
 #   - the disposable/isolated environments — the dev microvm (dev-vm.nix)
-#     and the Ubuntu cloud box (ubuntu.nix) — which default to "auto" mode;
+#     and the Ubuntu cloud box (ubuntu.nix);
 #   - the bare-metal workstations (desktop.nix, laptop.nix), where claude
 #     runs directly against real repos — and, on the desktop, debugs the
 #     host-side Hyprland/waybar setup the dev VM can't see.
-# The workstations are the hosts with the real ~/.config, /run/secrets, and
-# host services in reach, so they deliberately keep the prompting
-# `defaultMode` and the bubblewrap `sandbox` below — claude can't act
-# unattended there.
+# Every host defaults to "auto" mode. The workstations are the hosts with
+# the real ~/.config, /run/secrets, and host services in reach, so they
+# rely on the bubblewrap `sandbox` and deny-list below rather than on
+# prompting to keep claude off those paths.
 {
   inputs,
   pkgs-master,
@@ -173,22 +173,21 @@ in
         ];
       };
       permissions = {
-        # Prompt before applying Edit/Write/MultiEdit by default. mkDefault so
-        # the disposable/isolated VMs (dev microvm, Ubuntu cloud box) override
-        # with a plain "auto" (see dev-vm.nix / ubuntu.nix); the persistent
-        # workstations keep this prompting default. Any mode can still be
-        # toggled by hand (Shift+Tab) for a session, and Bash and other tools
-        # pass the allow-list and inner sandbox regardless of mode.
-        defaultMode = lib.mkDefault "default";
+        # "auto" everywhere, workstations included: Claude auto-approves
+        # actions it classifies as safe and still blocks risky ones and
+        # suspected prompt injection. Any mode can still be toggled by hand
+        # (Shift+Tab) for a session, and Bash and other tools pass the
+        # allow-list and inner sandbox regardless of mode.
+        defaultMode = "auto";
         allow = [
-          "Read(${config.home.homeDirectory}/repos/**)"
-          "Grep(${config.home.homeDirectory}/repos/**)"
-          "Edit(${config.home.homeDirectory}/repos/**)"
-          "Read(${config.home.homeDirectory}/.cargo/**)"
-          "Grep(${config.home.homeDirectory}/.cargo/**)"
-          "Edit(${config.home.homeDirectory}/.cargo/**)"
-          "Read(/nix/store/**)"
-          "Grep(/nix/store/**)"
+          # Path rules need a `~/` or `//` (absolute) anchor: a single leading
+          # `/` resolves relative to ~/.claude in user settings. Read rules
+          # also cover Grep and Glob; Grep(path) rules are never consulted.
+          "Read(~/repos/**)"
+          "Edit(~/repos/**)"
+          "Read(~/.cargo/**)"
+          "Edit(~/.cargo/**)"
+          "Read(//nix/store/**)"
           "Bash(cargo build:*)"
           "Bash(cargo check:*)"
           "Bash(cargo run:*)"
@@ -225,8 +224,7 @@ in
           "WebFetch(domain:github.com)"
           "WebFetch(domain:api.github.com)"
           "WebFetch(domain:index.crates.io)"
-          "Read(/tmp/**)"
-          "Grep(/tmp/**)"
+          "Read(//tmp/**)"
         ];
         # Human-only actions (destroying/applying infra, driving cloud CLIs).
         # The authoritative, tamper-proof copy is the root-owned
@@ -359,6 +357,14 @@ in
       sandbox disabled sees it unset, so `$TMPDIR/x` becomes `/x` and fails
       with permission denied; use `mktemp -d` or the session scratchpad path
       there instead.
+
+      # Sandbox phantom files in git status
+
+      Inside the Bash sandbox, `git status` in a repo can list untracked
+      dotfiles and config (`.bashrc`, `.zshrc`, `.profile`, `.gitconfig`,
+      `.ripgreprc`, `.claude/`, `.idea`, `.vscode`, `.mcp.json`,
+      `.gitmodules`). They are sandbox mount artifacts, not real files in
+      the user's tree. Ignore them; never report, delete, or gitignore them.
 
       # Build logic ownership
 

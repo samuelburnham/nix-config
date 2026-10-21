@@ -19,9 +19,7 @@
     ../modules/hyprland.nix
     ../modules/gnome.nix
     # Host-side Claude for debugging the Hyprland/waybar setup the dev VM
-    # can't see (the compositor runs here, not in the guest). The host keeps
-    # claude.nix's prompting defaultMode; only the disposable VM / cloud box
-    # default to "auto".
+    # can't see (the compositor runs here, not in the guest).
     ../modules/claude.nix
     # worktrunk drives worktree-based dev on the workstation too; it shells
     # out to the claude above for commit messages.

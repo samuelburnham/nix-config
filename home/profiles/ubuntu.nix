@@ -15,11 +15,6 @@
     ../modules/worktrunk.nix
   ];
 
-  # This config runs on a disposable cloud VM, so default to "auto" mode like
-  # the dev microvm — Claude auto-approves safe actions and blocks risky ones
-  # (see dev-vm.nix). Overrides base.nix's prompting default.
-  programs.claude-code.settings.permissions.defaultMode = "auto";
-
   # The bench box installs the home-manager-setup helper into ~/.local/bin.
   # Ubuntu's stock ~/.profile put that directory on PATH, but activation
   # replaces that file, so keep it on PATH here or the helper cannot be
