@@ -53,21 +53,16 @@ in
   # No SSH agent in the VM. Private GitHub repos still clone with their
   # SSH-style URLs because git transparently rewrites git@github.com /
   # ssh://git@github.com fetches to HTTPS, which authenticate with the
-  # forwarded read-only GH_TOKEN (gh credential helper, base.nix). You run
-  # `git clone git@github.com:org/repo` unchanged; the rewrite is internal.
-  # VM-only — the host keeps real SSH, so push (write, hardware key) works
-  # there. Pushing from the VM is intentionally unsupported (read-only
-  # token → 403); push from the host.
+  # forwarded GH_TOKEN (gh credential helper, base.nix), and so do pushes.
+  # You run `git clone git@github.com:org/repo` unchanged; the rewrite is
+  # internal. The token is a fine-grained PAT scoped to the argumentcomputer
+  # repos worked on here, without Administration, so it cannot lift the
+  # `main` rulesets that keep merges behind a PR. VM-only — the host keeps
+  # real SSH for nix-config, which this token does not cover.
   programs.git.settings.url."https://github.com/".insteadOf = [
     "git@github.com:"
     "ssh://git@github.com/"
   ];
-
-  # `gh api` stays non-prompting here (it is kept out of the shared allow-list
-  # in claude.nix): the token forwarded into the VM is the read-only PAT, so
-  # `gh api` calls can query GitHub but not write it. Concatenates onto the
-  # shared allow-list for the VM only.
-  programs.claude-code.settings.permissions.allow = [ "Bash(gh api:*)" ];
 
   # Make cargo fetch git deps via the git CLI so private deps go through
   # the credential helper + token (and the rewrite above) rather than

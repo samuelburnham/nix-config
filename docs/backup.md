@@ -64,7 +64,8 @@ move the conflicting file aside rather than deleting it blindly.
 ## Not covered by this backup
 
 Only the host's `/home/sam` is covered. WiFi credentials, Bluetooth pairings,
-and the microVM's `home.img` are outside this backup. VM-private assistant
-conversations and tmux state are therefore not restored; shared repositories
-are covered. Exclusions also omit `.cache`, Steam, `.local/share/containers`,
-and Git-ignored untracked files in repositories.
+and the microVM's `home.img` are outside this backup. The VM's repositories,
+assistant conversations and tmux state live in `home.img`, so they are not
+restored: VM work is safe only once pushed to GitHub. Exclusions also omit
+`.cache`, Steam, `.local/share/containers`, and Git-ignored untracked files in
+the host's repositories.

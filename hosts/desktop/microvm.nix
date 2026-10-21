@@ -148,8 +148,8 @@ in
       # generation when you're ready with `systemctl restart microvm@dev`: the
       # boot is a few seconds (the cloud-hypervisor vsock notify stall is fixed
       # by microvm PR #493) and it re-registers the new closure into the guest
-      # Nix DB from regInfo. home.img, the ~/repos share, and the persistent
-      # Nix DB (nix-var.img) all survive the restart — so the first devshell
+      # Nix DB from regInfo. home.img (which holds ~/repos) and the persistent
+      # Nix DB (nix-var.img) both survive the restart — so the first devshell
       # entry after a restart no longer pays a full closure re-registration.
       restartIfChanged = false;
 
@@ -218,25 +218,22 @@ in
             vsock.cid = 3;
             vsock.ssh.enable = true;
 
+            # The store is the only host directory the guest sees, and it is
+            # read-only. Repositories live on the guest's own home.img, never
+            # on a host path: anything the guest can write there, host git,
+            # devshells, build scripts and LSPs would execute. The guest
+            # pushes to GitHub itself; nix-config lives only on the host.
             shares = [
               {
                 tag = "ro-store";
                 source = "/nix/store";
                 mountPoint = "/nix/.ro-store";
                 proto = "virtiofs";
-              }
-              {
-                # Only the code is shared from the host — so host-side rebuild,
-                # git, restic backup, and inspection all see the same files.
-                # Mounted over the persistent /home volume below. Everything
-                # else in the VM home (cargo cache, claude state, tmux/direnv
-                # data, history) lives in that volume, VM-private: it persists
-                # across reboots, stays out of the host backup, and is not
-                # reachable by a host-side breach of the VM.
-                tag = "repos";
-                source = "/home/${username}/repos";
-                mountPoint = "/home/${username}/repos";
-                proto = "virtiofs";
+                # virtiofsd runs as root, so the guest-side ro mount (which
+                # guest root can remount) is no protection. --readonly makes
+                # virtiofsd refuse writes, on top of the host's read-only
+                # store mount.
+                readOnly = true;
               }
             ];
 
@@ -286,9 +283,10 @@ in
               }
               {
                 # Persistent VM home — all home state (cargo, claude, tmux,
-                # direnv, history, caches) survives reboots here. ~/repos is
-                # virtiofs-mounted over the top from the host. Sparse image
-                # (truncate), so the size is a ceiling, not upfront usage.
+                # direnv, history, caches) and ~/repos survive reboots here. It
+                # is not in the host's restic backup, so work is safe only
+                # once pushed. Sparse image (truncate), so the size is a
+                # ceiling, not upfront usage.
                 image = "home.img";
                 mountPoint = "/home";
                 size = 128 * 1024;
@@ -359,8 +357,8 @@ in
           # On a fresh /home volume nothing under it exists yet, and tmpfiles
           # creates implicit parents as root — so own /home/sam and the
           # home-manager profile chain explicitly (HM's profile lives under
-          # ~/.local/state/nix/profiles). The ~/repos mountpoint for the
-          # virtiofs share is listed too. Everything else under home is created
+          # ~/.local/state/nix/profiles), plus ~/repos, where shells and sesh
+          # start. Everything else under home is created
           # lazily by the user/tools and persists in the volume.
           systemd.tmpfiles.rules = [
             "d /home/${username}                            0700 ${username} users -"

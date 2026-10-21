@@ -348,7 +348,8 @@ in
       Do NOT write them to `~/.claude/projects/*/memory/`: that path is
       home-manager-managed or ephemeral VM state and is not version-controlled,
       so it is lost on reprovision. Edits here need a `home-manager switch` to
-      take effect. Keep entries terse — everything here loads into every
+      take effect. nix-config exists only on the host, not in the dev VM;
+      from the VM, give the user the edit to apply on the host. Keep entries terse — everything here loads into every
       session's context.
 
       # Temp files outside the sandbox
