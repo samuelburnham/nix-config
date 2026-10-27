@@ -781,6 +781,9 @@ in
 
   programs.git = {
     enable = true;
+    # Neovim writes its log to ./nvim.log when its state dir is unwritable,
+    # as in agent sandboxes.
+    ignores = [ "nvim.log" ];
     settings = {
       user = {
         name = "samuelburnham";
