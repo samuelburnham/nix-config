@@ -114,7 +114,7 @@ in
       };
       # Default model for every new session. `/model` still switches within a
       # session, and CLAUDE_CODE_MODEL / --model override this at launch.
-      model = "claude-fable-5-1";
+      model = "claude-opus-5-5";
       # Suppress Claude's own generic desktop notification; the Notification
       # hook below emits a replacement that names the originating
       # worktree/session. The hook fires independent of this channel setting.
@@ -317,6 +317,12 @@ in
       };
     };
     context = sharedContext + ''
+
+      # Model selection and delegation
+
+      Use Fable 5.1 by default for planning. Delegate targeted review,
+      implementation, and other parallelizable tasks to Opus 5.5 sub-agents.
+      Give each sub-agent a focused scope and run independent tasks in parallel.
 
       # Commit attribution
 

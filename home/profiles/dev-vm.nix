@@ -16,7 +16,7 @@ let
   nvimThemeRelay = pkgs.writeShellScript "nvim-theme-relay" ''
     for sock in "''${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"/nvim.*.0; do
       [ -S "$sock" ] || continue
-      ${inputs.self.packages.${pkgs.system}.nvim}/bin/nvim \
+      ${inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.nvim}/bin/nvim \
         --server "$sock" --remote-send "<Cmd>$1<CR>" 2>/dev/null &
     done
     true
@@ -32,7 +32,7 @@ in
   ];
 
   home.packages = [
-    inputs.self.packages.${pkgs.system}.nvim
+    inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.nvim
   ];
 
   # nvim can't read the terminal's CSI ?997 theme report itself (its

@@ -15,6 +15,9 @@
     ../modules/worktrunk.nix
   ];
 
+  # Keep each worktree's dev shell opt-in on the cloud box.
+  programs.worktrunk.autoAllowDirenv = false;
+
   # The bench box installs the home-manager-setup helper into ~/.local/bin.
   # Ubuntu's stock ~/.profile put that directory on PATH, but activation
   # replaces that file, so keep it on PATH here or the helper cannot be
@@ -48,7 +51,7 @@
   '';
 
   home.packages = [
-    inputs.self.packages.${pkgs.system}.nvim
+    inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.nvim
   ];
 
   # Ghostty's terminfo (`xterm-ghostty`) isn't in Ubuntu's ncurses database,

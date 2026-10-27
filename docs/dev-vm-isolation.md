@@ -6,60 +6,56 @@ the design Sam agreed, what is done, and what is left.
 
 ## Design
 
-1. **No shared repositories.** The only host directory the VM sees is
-   `/nix/store`, read-only over virtiofs (`hosts/desktop/microvm.nix`). All
-   working repos live in the VM's own `~/repos`, on its persistent `home.img`
-   volume.
-   - Nothing the VM writes lands on a host path. That rules out the whole
+1. **No shared host directories.** `microvm.shares` is empty. The guest's
+   base Nix store is an immutable EROFS image built on the host. All working
+   repos live in the VM's own `~/repos`, on its persistent `home.img` volume.
+   - VM filesystem writes stay in its disk images, so host tools do not see
+     guest-written repository files. That closes the shared-directory
      injection class: `.git/config` keys (`core.fsmonitor`,
      `core.sshCommand`, filters), hooks, `.envrc`, devshell `shellHook`s,
      `build.rs` and lakefiles run by LSPs, and project agent config
      (`.claude/`, `.codex/`, `.mcp.json`).
-2. **nix-config lives only on the host,** in `~/repos/nix-config`, and is
-   edited by host agents. `rebuild` runs it as root.
-   - The VM has no copy. The CLAUDE.md memory section in
+2. **The authoritative nix-config checkout stays on the host,** in
+   `~/repos/nix-config`, alongside any other trusted host repositories.
+   Host agents edit it, and `rebuild` runs it as root.
+   - The VM has no writable access to that checkout. The CLAUDE.md memory section in
      `home/modules/claude.nix` tells VM agents to hand nix-config edits to Sam.
-   - The host's `~/repos` holds nothing else the VM wrote. That makes the
+   - Host repositories must not be writable by the VM. That keeps the
      host's existing trust of `~/repos` correct again: Ghostty's start
      directory, Codex `trustedRoots`, Claude `Read`/`Edit(~/repos/**)`, the
      restic scan.
 3. **The VM pushes to GitHub itself.** `GH_TOKEN` (sops secret `gh-token`,
-   forwarded per session by `ssh-dev-vm` in `home/modules/gui.nix`) becomes a
-   fine-grained PAT:
-   - It is owned by `samuelburnham` and scoped to the argumentcomputer repos
-     in use.
-   - It has Contents write and whatever else is convenient, but **no
+   forwarded per session by `ssh-dev-vm` and `ssh-bench` in
+   `home/modules/gui.nix`) becomes a fine-grained PAT shared with bench boxes:
+   - It is created by `samuelburnham`, with argumentcomputer as the resource
+     owner and only the development repositories in scope, excluding nix-config.
+   - It has Contents write and only other necessary permissions, but **no
      Administration**, so it cannot lift rulesets.
    - Git pushes over HTTPS through the `gh` credential helper and the
      `insteadOf` rewrite in `home/profiles/dev-vm.nix`.
    - Sam opens PRs by hand.
 4. **`main` is protected on GitHub.** Add a ruleset on the argumentcomputer
    repos: require a PR, block force-pushes and deletions, **no bypass
-   actors**. Whether an admin bypass carries over to a PAT is unverified,
-   hence no bypass.
+   actors**. Requiring a PR alone does not enforce human approval: a
+   Contents-write token can also call the merge API. Enforce required reviews
+   with an identity unavailable to the VM if human approval is required.
 
-5. **Keep the read-only store share.** The host builds the guest's whole
-   closure: NixOS, its home-manager generation, nvim, tmux config, Ghostty
-   terminfo. The guest needs those paths, and the shared store also serves
-   as the lower layer for devshell builds in the VM, so toolchains already on
-   the host are not fetched again.
-   - Integrity: virtiofsd runs as root, and guest root can remount the guest
-     side read-write. So the share sets `readOnly = true`, which passes
-     virtiofsd `--readonly`, on top of NixOS's read-only `/nix/store` bind
-     mount.
-   - Confidentiality: the VM can read every host store path. Store paths are
-     world-readable on the host anyway, so keep secrets out of the store
-     (sops already renders them under `/run`).
-   - The alternative is `microvm.storeOnDisk = true`: an erofs image of
-     exactly the guest closure, attached as a block device. It removes
-     virtiofsd entirely and hides host-only paths. The costs:
-     - an image rebuild on every guest closure change;
-     - the image in the Cachix CI build;
-     - devshell inputs fetched again into the overlay, instead of being read
-       from the host store.
+5. **Use a private guest store.** `microvm.storeOnDisk = true` builds
+   a read-only EROFS image containing the guest system closure: NixOS, its
+   home-manager generation, nvim, tmux config and their dependencies. The
+   runner attaches that image as a read-only block device. No virtiofsd is
+   needed, and unrelated host store paths are unavailable to the guest.
+   - `rebuild` updates the host and guest configurations.
+     `restartIfChanged = false` keeps the running VM on its booted image.
+     Save work, then run `sudo systemctl restart microvm@dev` to use the
+     new generation.
+   - Packages absent from the image are fetched or built into the guest's
+     writable store overlay. They cannot be read from the host store.
+   - `home.img`, the writable store overlay and the persistent Nix DB remain
+     separate volumes. Existing overlay whiteouts and stale DB entries still
+     need handling when the base changes.
 
-     Worth it only if virtiofsd itself, or reading the host store, is in the
-     threat model.
+   Network, clipboard and credential restrictions remain separate controls.
 
 ### Accepted risk
 
@@ -68,8 +64,8 @@ agent-written code. Sam does not review diffs before opening PRs, so a host
 push gate would add no review. Withholding Workflows or Actions permissions
 would not help: code run by existing workflows reaches the same secrets. For
 example, ix `nix.yml` runs `lake build` after `cachix-action` has received
-its token. What stays guarded is `main`: code reaches it only through a PR
-Sam merges.
+its token. A PR requirement guards direct updates to `main`; human approval
+requires the additional review policy described above.
 
 ### Rejected alternatives
 
@@ -90,9 +86,9 @@ Sam merges.
 
 Done:
 
-- `hosts/desktop/microvm.nix`: the `repos` share is removed, leaving only
-  `ro-store`, now with `readOnly = true`. Comments are updated. The guest already creates
-  `/home/sam/repos` through tmpfiles.
+- `hosts/desktop/microvm.nix`: no host directories are shared; `storeOnDisk`
+  provides the guest store as an EROFS image.
+  The guest creates `/home/sam/repos` through tmpfiles.
 - Deleted `home/modules/git-shared-repos.nix` and
   `scripts/git-shared-repos.sh`.
 - `home/profiles/dev-vm.nix`: comments describe the push-capable token, and
@@ -123,9 +119,11 @@ Needs a decision or a fix before migrating:
     filesystem snapshot.
   - Run restic inside the VM against a separate repository. This must not be
     a writable host path, or it reopens a host-writable surface.
-- **`home.img` size.** It is a 128 GiB sparse ceiling. Check
-  `du -sh ~/repos` on the desktop first. Growing an existing image needs a
-  manual `truncate` plus `resize2fs` with the VM stopped.
+- **`home.img` size.** It is a 128 GiB sparse ceiling. Check host free space
+  with `df -h /var/lib/microvms/dev` and guest home free space with
+  `ssh dev-vm 'df -h /home'`. Account for the selected repositories without
+  recursively scanning the entire research-clone tree or Nix store. Growing
+  an existing image needs a manual `truncate` plus `resize2fs` with the VM stopped.
 
 Hardening that remains independent of the share:
 
@@ -143,8 +141,8 @@ Workflow changes to expect:
 
 - Host tools cannot see VM files. To view a PDF built in the VM with host
   zathura, `scp dev-vm:repos/ix-paper/result/paper.pdf .`.
-- Research clones (`~/repos/clones`) move into the VM, so host agents will
-  not find them.
+- Research clones needed by VM tools live in the VM. Independently maintained,
+  trusted clones may remain on the host, including the wlogout icon source.
 
 Sam does these on GitHub:
 
@@ -158,31 +156,40 @@ Sam does these on GitHub:
 
 On the desktop, in order:
 
-1. Check that the repos fit: `du -sh ~/repos` (excluding nix-config) against
-   the free space in `/var/lib/microvms/dev` and the `home.img` ceiling.
-2. `rebuild`, then
-   `sudo systemctl restart microvm-virtiofsd@dev microvm@dev`. The VM does
-   not restart on a host rebuild (`restartIfChanged = false`). After the
-   restart the VM's `~/repos` is the empty directory on `home.img`.
-3. Copy the repos in. Add `--exclude` flags for build output (`target`,
-   `.lake/build`, `result`) if space is tight.
+1. Choose the repositories to migrate and the trusted repositories to retain
+   on the host. Check host and guest free space as described above. Stop writes
+   to migrating repositories for the final copy, including linked worktrees.
+2. `rebuild` builds and installs the guest image. Save VM work, then run
+   `sudo systemctl restart microvm@dev`. The VM does not restart on a host
+   rebuild (`restartIfChanged = false`). Its virtiofsd service stops with the
+   old VM and has no daemon to start for the new configuration. After the
+   restart the VM's `~/repos` is the directory on `home.img`; preserve anything
+   already there. Removing the share does not copy the previously shared files.
+3. Copy the selected repositories into the VM's `~/repos`, checking for
+   destination collisions first. Preserve Git metadata, uncommitted files,
+   stashes, and linked worktrees. For an individual repository:
 
    ```sh
-   tar -C ~/repos --exclude=./nix-config -cf - . | ssh dev-vm 'tar -C ~/repos -xpf -'
+   tar -C ~/repos -cf - REPOSITORY | ssh dev-vm 'tar -C ~/repos -xpf -'
    ```
 
-4. Verify in the VM (`git -C ~/repos/ix status`, a build), then delete
-   everything except `nix-config` from the host's `~/repos`. Keep
-   `clones/hyprland` until the wlogout icons are moved.
+4. Verify the copies, uncommitted state, stashes and linked-worktree paths in
+   the VM, and confirm backup coverage. Only then remove the migrated copies
+   from the **host**. Retain host `nix-config` and other trusted repositories,
+   including `clones/hyprland` while wlogout depends on it. Keep the VM's
+   `~/repos` and its repositories intact.
 
 ## Verify
 
 Inside the VM:
 
 ```sh
-mount | grep virtiofs              # only /nix/.ro-store
-sudo mount -o remount,rw /nix/.ro-store; sudo touch /nix/.ro-store/x   # touch fails
-ls ~/repos/nix-config              # does not exist
-git push origin HEAD:main          # rejected by the ruleset
-git push origin HEAD:some-branch   # succeeds
+findmnt -t virtiofs                # no mounts
+findmnt /nix/.ro-store             # read-only EROFS block device
+findmnt /home                      # persistent guest home volume
+git -C ~/repos/REPOSITORY status   # migrated work is intact
 ```
+
+Inspect GitHub rulesets and token permissions before using the write-capable
+token. Branch protection and human approval requirements are independent of
+the VM's filesystem isolation.

@@ -3,27 +3,36 @@ name: update-flake-lock
 on:
   workflow_dispatch:
   schedule:
-    # Weekly, Sunday 00:00 UTC.
-    - cron: '0 0 * * 0'
+    # Monthly, alongside Dependabot's monthly run on the 1st.
+    - cron: '0 0 1 * *'
 
 jobs:
   nixos:
     name: "flake.lock"
     permissions:
-      contents: write
+      contents: read
       id-token: write
-      issues: write
-      pull-requests: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: DeterminateSystems/determinate-nix-action@d0c908e6cbe9f89f36ed8205a3ab6f092636916a # v3.23.1
-      - uses: DeterminateSystems/update-flake-lock@da03c0f078bc4b2c37ee4f7e072d34bf8f188bb3 # v29
+      - id: update
+        uses: DeterminateSystems/update-flake-lock@da03c0f078bc4b2c37ee4f7e072d34bf8f188bb3 # v29
         with:
-          pr-title: "nixos: update flake.lock"
+          # A PAT, unlike GITHUB_TOKEN, lets the PR trigger `check` and the
+          # auto-merge push trigger `cache`.
+          token: ${{ secrets.UPDATE_PAT }}
+          pr-title: "chore(flake): Update flake.lock"
+          commit-msg: "chore(flake): Update flake.lock"
           pr-labels: |
             dependencies
             automated
             nixos
+      - name: Enable auto-merge
+        if: steps.update.outputs.pull-request-url != ''
+        env:
+          GH_TOKEN: ${{ secrets.UPDATE_PAT }}
+          PR_URL: ${{ steps.update.outputs.pull-request-url }}
+        run: gh pr merge --auto --squash "$PR_URL"

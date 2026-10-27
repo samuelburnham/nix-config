@@ -28,27 +28,6 @@ let
     )
   '';
 
-  # Workspace-overview plugin (loaded via wayland.windowManager.hyprland
-  # .plugins below). The nixpkgs package builds upstream KZDKM master,
-  # which predates the 0.55 V2 plugin API and has no Lua dispatcher
-  # wrappers, so it fails against the system Hyprland 0.55.4. Built from
-  # the migrate-v2 branch (KZDKM/Hyprspace#238) instead until it merges;
-  # binds live in nix/binds.lua, styling under settings.config.plugin.
-  # Pinned to 0c0fe4f, the last commit on that branch compatible with
-  # 0.55.4 — the later "Updating deprecated functions + render changes"
-  # commits track Hyprland master's header layout (managers/animation/ →
-  # animation/, new desktop/state/GlobalWindowController.hpp) and no
-  # longer compile against 0.55.4 headers.
-  hyprspace = pkgs.hyprlandPlugins.hyprspace.overrideAttrs {
-    version = "0-unstable-2026-07-07";
-    src = pkgs.fetchFromGitHub {
-      owner = "ImanolBarba";
-      repo = "Hyprspace";
-      rev = "0c0fe4fc9cc9eac42d6891b840c349263ce42dba";
-      hash = "sha256-0Z/wCBBbWdcmROnwfg52xFbJW1uH8PD/hwa5GrOHSzw=";
-    };
-  };
-
   swayncLog = pkgs.writeShellScript "swaync-log" ''
     mkdir -p "$HOME/.local/share/swaync"
     printf '%s [%s] %s: %s\n' \
@@ -626,11 +605,6 @@ in
     # only. stateVersion < 26.05 would otherwise default to "hyprlang".
     configType = "lua";
 
-    # hyprspace is loaded (and its panel styling applied) from the start
-    # hook in extraConfig below, NOT via the `plugins` option: a plugin's
-    # `plugin:overview:*` config keys don't exist until it loads, so setting
-    # them here in the eagerly-parsed hl.config() block errors as unknown.
-
     settings = {
       monitor = [
         # 34" ultrawide (Viewteck GNV34DBE) anchors the layout at the origin.
@@ -765,30 +739,6 @@ in
             icon = "warning",
           })
         end
-      end)
-
-      -- Load Hyprspace and apply its panel styling. The plugin's
-      -- plugin:overview:* keys only exist once it's loaded, which can't
-      -- happen inside the eagerly-parsed hl.config() above — so they're set
-      -- here, after the load. `hyprctl keyword` is rejected under the Lua
-      -- config parser ("use eval"), so the values go through `hyprctl eval`
-      -- running hl.config(), which merges and leaves the rest of the config
-      -- intact. hl.exec_cmd spawns via `/bin/sh -c` without waiting, so the
-      -- load and eval are chained in one command: hyprctl blocks on each IPC
-      -- reply, so `&&` runs the eval only after the plugin has registered its
-      -- keys.
-      hl.on("hyprland.start", function()
-        hl.exec_cmd(
-          [[hyprctl plugin load ${hyprspace}/lib/libhyprspace.so && ]]
-          .. [[hyprctl eval 'hl.config({ ["plugin"] = { ["overview"] = { ]]
-          .. [[["panelColor"] = "rgba(11111bee)", ]]
-          .. [[["panelBorderColor"] = "rgba(89b4faee)", ]]
-          .. [[["workspaceActiveBorder"] = "rgba(89b4faee)", ]]
-          .. [[["workspaceInactiveBorder"] = "rgba(313244aa)", ]]
-          -- Hide the trailing "new workspace" tile: with 1-5 and 6-10 bound
-          -- to the two monitors, it only ever creates an orphan ws 11.
-          .. [[["showNewWorkspace"] = 0 } } })']]
-        )
       end)
 
       require("nix/binds")
@@ -987,18 +937,6 @@ in
       for i = 6, 10 do
         hl.bind(mod .. " + ALT + " .. (i % 10), hl.dsp.window.move({ workspace = i }))
       end
-
-      -- Hyprspace workspace overview. The hl.plugin.overview.* wrappers
-      -- are registered when the plugin loads in the start hook — after
-      -- this file is parsed — so the calls must sit inside closures that
-      -- defer the lookup to keypress time. Plain TAB = current monitor,
-      -- SHIFT = both monitors at once.
-      hl.bind(mod .. " + TAB", function()
-        hl.plugin.overview.toggle()
-      end)
-      hl.bind(mod .. " + SHIFT + TAB", function()
-        hl.plugin.overview.toggle("all")
-      end)
 
       hl.bind(mod .. " + S", hl.dsp.workspace.toggle_special("magic"))
       -- Toggle the focused window in/out of the magic scratchpad,

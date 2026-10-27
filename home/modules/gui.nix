@@ -11,9 +11,9 @@
 {
   pkgs,
   pkgs-unstable,
-  pkgs-master,
   inputs,
   config,
+  lib,
   ...
 }:
 {
@@ -36,11 +36,7 @@
       # electron, add that version to permittedInsecurePackages on the
       # pkgs-unstable import in flake.nix.
       # pkgs-unstable.bitwarden-desktop
-      vscode
-      # Sourced from nixpkgs-master: stable/unstable zulip still build with the
-      # EOL-flagged pnpm_10_29_2; master's 5.12.4 moved to pnpm_11, avoiding the
-      # insecure-package refusal without an allow-list.
-      pkgs-master.zulip
+      zulip
       spotify
       obsidian
       telegram-desktop
@@ -48,7 +44,7 @@
       slack
       google-chrome
       todoist-electron
-      libreoffice
+      pkgs-unstable.libreoffice
       wl-clipboard
       lm_sensors
       smartmontools
@@ -61,6 +57,11 @@
       imagemagick
       ghostscript
       inkscape
+      # Host LaTeX editing works without entering a project's dev shell.
+      (texlive.withPackages (ps: [
+        ps.scheme-medium
+        ps.latexmk
+      ]))
       # GNOME's image viewer; works fine standalone outside a GNOME session.
       loupe
     ]
@@ -68,7 +69,34 @@
       # nvim = the standalone nvf-built editor exposed as packages.nvim
       # at the nixos flake top level. System editor ($EDITOR) stays as
       # plain `vim` for git commit messages.
-      inputs.self.packages.${pkgs.system}.nvim
+      inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.nvim
+
+      (pkgs.writeShellApplication {
+        name = "ssh-bench";
+        runtimeInputs = [
+          pkgs.coreutils
+          pkgs.openssh
+        ];
+        text = ''
+          if [ "$#" -eq 0 ]; then
+            echo "Usage: ssh-bench IP [COMMAND...]" >&2
+            exit 2
+          fi
+          # Read the scoped token explicitly so an ambient host token cannot
+          # be forwarded when the scoped secret is unavailable.
+          if [ ! -r /run/secrets/gh-token ]; then
+            echo "ssh-bench: /run/secrets/gh-token is not readable" >&2
+            exit 1
+          fi
+          GH_TOKEN="$(cat /run/secrets/gh-token)"
+          if [ -z "$GH_TOKEN" ]; then
+            echo "ssh-bench: /run/secrets/gh-token is empty" >&2
+            exit 1
+          fi
+          export GH_TOKEN
+          exec ssh -A -l ${lib.escapeShellArg config.home.username} -o SendEnv=GH_TOKEN "$@"
+        '';
+      })
 
       # Connect to the dev microvm, forwarding its scoped credentials without
       # installing them in the ordinary host-shell environment. Assigning the

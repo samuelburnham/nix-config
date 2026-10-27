@@ -9,10 +9,13 @@
   config,
   lib,
   pkgs,
+  pkgs-master,
   pkgs-unstable,
   ...
 }:
 let
+  codexPackage = pkgs-master.codex;
+
   # `case` patterns matching each trusted root and everything beneath it.
   trustedPatterns = lib.concatMapStringsSep "|" (r: "${r}|${r}/*") config.programs.codex.trustedRoots;
 
@@ -21,10 +24,13 @@ let
     runtimeInputs = [
       pkgs.git
       pkgs.jq
+      # Codex checks PATH at startup even when nixpkgs provides a bundled bwrap.
+      pkgs-unstable.bubblewrap
     ];
     derivationArgs = {
-      inherit (pkgs-unstable.codex) version;
-      meta = pkgs-unstable.codex.meta // {
+      inherit (codexPackage) version;
+      passthru.unwrapped = codexPackage;
+      meta = codexPackage.meta // {
         mainProgram = "codex";
       };
     };
@@ -42,11 +48,11 @@ let
           project_key=$(jq -Rn --arg path "$codex_project_root" '$path')
           # Quoted segments in -c keys are treated literally, so put the
           # dynamic path in the projects table value instead.
-          exec ${pkgs-unstable.codex}/bin/codex \
+          exec ${codexPackage}/bin/codex \
             -c "projects={$project_key={trust_level=\"trusted\"}}" "$@"
           ;;
         *)
-          exec ${pkgs-unstable.codex}/bin/codex "$@"
+          exec ${codexPackage}/bin/codex "$@"
           ;;
       esac
     '';
@@ -81,6 +87,7 @@ in
       tui.status_line = [
         "model-with-reasoning"
         "current-dir"
+        "git-branch"
         "approval-mode"
         "context-used"
         "five-hour-limit"

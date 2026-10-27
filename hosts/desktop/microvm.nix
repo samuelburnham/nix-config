@@ -90,20 +90,10 @@ in
     ];
   };
 
-  # This VM pins up to 48 GiB of host RAM as shmem (cloud-hypervisor backs
-  # guest memory with a memfd so virtiofsd can map it). On S3 entry amdgpu
-  # evicts VRAM into system RAM under GFP_NOIO, which may not start I/O and
-  # therefore cannot swap shmem out to make room; with the VM up, that
-  # allocation lands below the free-page watermark and fails:
-  #
-  #   [TTM] Buffer eviction failed
-  #   amdgpu: evicting device resources failed
-  #
-  # The suspend then aborts after the console is already suspended and the
-  # display DPMS-off, so the machine sits awake with a dark screen and the fans
-  # ramping. Stopping the VM first is what makes suspend work at all, so it has
-  # to happen on every entry point (wlogout, hypridle, loginctl, hibernate) —
-  # hence a sleep hook rather than anything session-side.
+  # The guest can consume 48 GiB of host RAM. Suspend needs additional host
+  # memory for amdgpu VRAM eviction; under memory pressure this can fail after
+  # the display is already off. Stop the guest before every suspend entry
+  # point to release that memory.
   #
   # sleep-actions.service is ordered Before=sleep.target, so the stop below
   # completes — memory genuinely returned — before the kernel suspends. The
@@ -134,23 +124,20 @@ in
   microvm.vms.${vmName} =
     let
       system = "x86_64-linux";
-      vmPkgs-unstable = import inputs.nixpkgs-unstable { inherit system; };
+      vmPkgs-unstable = import inputs.nixpkgs-unstable {
+        inherit system;
+        config.allowUnfreePredicate = pkg: lib.getName pkg == "obsidian-headless";
+      };
       vmPkgs-master = import inputs.nixpkgs-master {
         inherit system;
         config.allowUnfree = true;
       };
     in
     {
-      # A host rebuild updates this VM's `current` runner but leaves the
-      # running guest alone, so an unrelated host rebuild never bounces an
-      # in-progress session. With the shared store below, the rebuild also
-      # builds no per-guest store image, so it stays fast. Apply a new
-      # generation when you're ready with `systemctl restart microvm@dev`: the
-      # boot is a few seconds (the cloud-hypervisor vsock notify stall is fixed
-      # by microvm PR #493) and it re-registers the new closure into the guest
-      # Nix DB from regInfo. home.img (which holds ~/repos) and the persistent
-      # Nix DB (nix-var.img) both survive the restart — so the first devshell
-      # entry after a restart no longer pays a full closure re-registration.
+      # Host rebuilds install the new guest generation without interrupting
+      # active sessions. Apply it with `sudo systemctl restart microvm@dev`.
+      # home.img, the writable store overlay and nix-var.img survive the
+      # restart; regInfo registers the new system closure in the guest Nix DB.
       restartIfChanged = false;
 
       # null → microvm instantiates the guest's package set from its own
@@ -218,44 +205,21 @@ in
             vsock.cid = 3;
             vsock.ssh.enable = true;
 
-            # The store is the only host directory the guest sees, and it is
-            # read-only. Repositories live on the guest's own home.img, never
-            # on a host path: anything the guest can write there, host git,
-            # devshells, build scripts and LSPs would execute. The guest
-            # pushes to GitHub itself; nix-config lives only on the host.
-            shares = [
-              {
-                tag = "ro-store";
-                source = "/nix/store";
-                mountPoint = "/nix/.ro-store";
-                proto = "virtiofs";
-                # virtiofsd runs as root, so the guest-side ro mount (which
-                # guest root can remount) is no protection. --readonly makes
-                # virtiofsd refuse writes, on top of the host's read-only
-                # store mount.
-                readOnly = true;
-              }
-            ];
+            # An immutable image exposes only the guest system closure and
+            # avoids a host virtiofsd process. Repositories live in home.img;
+            # the guest has no shared host directories.
+            shares = [ ];
+            storeOnDisk = true;
+            storeDiskType = "erofs";
 
-            # /nix/store is shared read-only from the host over virtiofs (the
-            # ro-store share above), so a host rebuild builds no per-guest
-            # store image — `storeOnDisk` would pack the whole guest closure
-            # into an erofs image and rebuild it (~30s) on every closure
-            # change, which a shared base.nix/nixpkgs triggers constantly. The
-            # guest registers the booted closure into its Nix DB from regInfo
-            # at boot (registerClosure defaults true without storeOnDisk), so a
-            # fresh boot always has a consistent DB; a host-built generation
-            # becomes known to the guest after `systemctl restart microvm@dev`.
-            #
-            # Writable overlay so guest-side nix builds don't write into the
-            # read-only shared store. Image lives under /var/lib/microvms/dev/.
+            # Guest builds write to a persistent upper layer over the image.
             writableStoreOverlay = "/nix/.rw-store";
             volumes = [
               {
-                # Writable upper layer over the shared read-only host store —
-                # holds paths built or fetched inside the VM that aren't
-                # already on the host (nix builds, devshell closures, flake
-                # fetches). Big ceiling for heavy ZK/Rust/Lean toolchains;
+                # Writable upper layer over the read-only guest store image —
+                # holds paths built or fetched inside the VM that aren't in
+                # the image (nix builds, devshell closures, flake fetches).
+                # Big ceiling for heavy ZK/Rust/Lean toolchains;
                 # sparse, so it only consumes what's actually written.
                 #
                 # This upper layer persists across reboots, so in-VM `nix` GC
@@ -268,11 +232,11 @@ in
                 # tell is the overlay /nix/store listing fewer entries than
                 # /nix/.ro-store. If a fresh boot breaks after an upgrade,
                 # delete this image — it only caches rebuildable VM-built
-                # paths, and home.img is separate — then rebuild. microvm
-                # recreates it empty when the VM next starts, which the rebuild
-                # itself does; no manual stop/start of microvm@dev needed:
+                # paths, and home.img is separate. Stop the VM before removing
+                # its disk; microvm recreates it empty on the next start:
+                #   systemctl stop microvm@dev
                 #   rm /var/lib/microvms/dev/nix-store-overlay.img
-                #   nixos-rebuild switch --flake ~/repos/nix-config#nixos
+                #   systemctl start microvm@dev
                 # After this the persistent Nix DB (nix-var.img) still references
                 # the deleted upper-layer paths; the nix-db-selfheal service
                 # prunes them on the next boot (or `rm nix-var.img` too for a
@@ -397,11 +361,9 @@ in
             options = "--delete-older-than 14d --option keep-outputs true --option keep-derivations true";
           };
 
-          # The persistent Nix DB above can outlive a store path only after a
-          # deliberate host `nix-collect-garbage` or an overlay-image reset: the
-          # guest's own GC updates this DB in lockstep, and the host runs no
-          # automatic GC. Prune any such orphaned entry so nix re-realises the
-          # path on next use instead of erroring on a valid-but-missing path.
+          # A new base image can omit paths recorded in the persistent Nix DB;
+          # resetting the overlay can also leave stale entries. Prune them so
+          # Nix re-realises missing paths instead of treating them as valid.
           # Stat-only: no --check-contents (no re-hashing) and no --repair (no
           # rebuild). Runs after the daemon so it never gates shell readiness —
           # the heal window only matters right after one of those rare events.
@@ -437,7 +399,7 @@ in
             # xterm-ghostty TERM forwarded over ssh from the host terminal is
             # understood here — otherwise less/git-pager/vim report "terminal
             # not fully functional". From unstable to match the host's ghostty
-            # (already built, shared store → no extra build).
+            # (the host build reuses the same terminfo package).
             vmPkgs-unstable.ghostty.terminfo
           ];
         };

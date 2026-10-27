@@ -29,13 +29,6 @@
       url = "github:Mic92/sops-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    # worktrunk moves fast — features like first-class alias dispatch only
-    # landed in 0.39 and nixpkgs lags (currently 0.37). Track upstream main
-    # so `nix flake update worktrunk` always pulls the latest.
-    worktrunk = {
-      url = "github:max-sixty/worktrunk";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
     # nixpkgs-unstable lags the hyprshell release cycle; fzf-style matching
     # for desktop-file exec fields landed in 4.10.1 and isn't in unstable yet.
     # Track upstream directly; `nix flake update hyprshell` pulls the latest.
@@ -58,14 +51,6 @@
     # Neovim flake — drives the standalone nvim package + the in-VM editor.
     nvf = {
       url = "github:notashelf/nvf";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    # Bencher CLI — continuous-benchmarking client, not in nixpkgs. Pinned to a
-    # release tag and built from upstream's flake; `nix flake update bencher`
-    # bumps it. Built from source (no upstream binary cache).
-    bencher = {
-      url = "github:bencherdev/bencher/v0.6.8";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -109,7 +94,10 @@
       perSystem =
         { system, pkgs, ... }:
         let
-          pkgs-unstable = import nixpkgs-unstable { inherit system; };
+          pkgs-unstable = import nixpkgs-unstable {
+            inherit system;
+            config.allowUnfreePredicate = pkg: nixpkgs.lib.getName pkg == "obsidian-headless";
+          };
           # Standalone nvim — same nvf config used inside the dev microvm
           # and anywhere `nix run github:samuelburnham/nix-config#nvim`
           # is invoked.
@@ -134,28 +122,6 @@
           # nixfmt (RFC 166), respects .gitignore, caches per-file, parallel.
           formatter = pkgs.nixfmt-tree;
 
-          # Push access to the cache declared in nixConfig above, scoped to
-          # this flake: a devshell is per-flake, so the token is present for
-          # `nix develop` on this checkout and nowhere else, and cachix stays
-          # out of every profile.
-          #
-          # Host-only in practice — /run/secrets does not exist in the dev
-          # microvm, which pulls from the cache but is deliberately given
-          # nothing that can write to it. Silent when the secret is absent;
-          # cachix reports its own missing-token error if a push is attempted.
-          #
-          # Read at shell entry rather than eval, so the token never reaches
-          # the Nix store. cachix keys its auth token globally rather than per
-          # cache (Config.authToken), hence one secret named per cache.
-          devShells.default = pkgs.mkShell {
-            packages = [ pkgs.cachix ];
-            shellHook = ''
-              secret=/run/secrets/cachix-token-samuelburnham
-              [ -r "$secret" ] && export CACHIX_AUTH_TOKEN="$(cat "$secret")"
-              unset secret
-            '';
-          };
-
           packages.nvim = customNeovim;
           packages.default = customNeovim;
 
@@ -172,10 +138,9 @@
           #     "$(nix build --no-link --print-out-paths \
           #        'github:samuelburnham/nix-config#claude-managed-settings')" \
           #     /etc/claude-code/managed-settings.json
-          packages.claude-managed-settings =
-            (pkgs.formats.json { }).generate "claude-managed-settings.json" {
-              permissions.deny = import ./common/claude-deny-list.nix;
-            };
+          packages.claude-managed-settings = (pkgs.formats.json { }).generate "claude-managed-settings.json" {
+            permissions.deny = import ./common/claude-deny-list.nix;
+          };
 
           apps.sam = {
             type = "app";
@@ -196,7 +161,10 @@
           # settings from it, on NixOS hosts and the standalone Ubuntu
           # config alike.
           username = "sam";
-          pkgs-unstable = import nixpkgs-unstable { inherit system; };
+          pkgs-unstable = import nixpkgs-unstable {
+            inherit system;
+            config.allowUnfreePredicate = pkg: nixpkgs.lib.getName pkg == "obsidian-headless";
+          };
           pkgs-master = import nixpkgs-master {
             inherit system;
             config.allowUnfree = true;

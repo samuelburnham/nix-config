@@ -14,9 +14,8 @@
       mouse-hide-while-typing = true;
       working-directory = "${config.home.homeDirectory}/repos";
       keybind = [
-        # CSI u sequence (\e[13;2u = Shift+Enter under fixterms/kitty
-        # keyboard protocol) survives tmux's `extended-keys on` passthrough,
-        # which a raw `\n` byte does not — tmux silently drops the raw form.
+        # CSI u keeps Shift+Enter distinct from Enter through tmux. A raw
+        # newline is Ctrl+J, which tmux binds to pane navigation.
         "shift+enter=text:\\x1b[13;2u"
         # Ghostty's built-in default binds ctrl+enter to toggle_fullscreen,
         # which fires by accident during normal terminal use. Send a plain

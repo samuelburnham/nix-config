@@ -42,6 +42,17 @@ Subsequent updates can use `rebuild`. That command embeds the flake's location;
 if the checkout or flake moves, run the explicit command above once to activate
 the wrapper with the new path. No `/etc/nixos` symlink is needed.
 
+On the desktop, `rebuild` also updates the dev VM configuration. After saving
+work, restart the VM to apply its changes:
+
+```sh
+sudo systemctl restart microvm@dev
+```
+
+The VM's home directory, repositories and writable Nix store persist across
+restarts. See [VM isolation and migration](docs/dev-vm-isolation.md) before the
+first switch from shared host repositories.
+
 Sources:
 [Enable Nix flakes](https://nixos-and-flakes.thiscute.world/nixos-with-flakes/nixos-with-flakes-enabled#enable-nix-flakes)
 [Managing config with git](https://nixos-and-flakes.thiscute.world/nixos-with-flakes/other-useful-tips#managing-the-configuration-with-git)
@@ -78,6 +89,29 @@ configuration:
 ```sh
 nix build --accept-flake-config .#nixosConfigurations.nixos.config.system.build.toplevel
 ```
+
+## GitHub authentication on Ubuntu bench boxes
+
+On the desktop or laptop host, connect with:
+
+```sh
+ssh-bench <ip>
+```
+
+This logs in as `sam`, forwards your SSH agent, and forwards the SOPS-managed
+GitHub token at `/run/secrets/gh-token` as `GH_TOKEN`. The Ubuntu
+SSH server must accept `GH_TOKEN`; `terraform-server` provisioning configures
+this for new boxes. The token stays out of the Nix configuration and binary
+cache.
+
+The SSH agent authenticates Git over SSH. The token authenticates `gh` and
+Git over HTTPS without `gh auth login`. The token is shared with the dev VM
+and should have Contents write access to the selected development repositories,
+without Administration access. An optional command can follow the IP, for example
+`ssh-bench <ip> 'uptime'`.
+
+After reconnecting to an existing tmux session, open a new pane to inherit
+the forwarded token; already-running shells keep their existing environment.
 
 ## Backup and recovery
 

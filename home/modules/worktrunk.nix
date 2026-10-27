@@ -4,69 +4,64 @@
 # bare-metal workstations (desktop.nix, laptop.nix) and the isolated
 # environments (dev-vm.nix, the Ubuntu box).
 {
-  inputs,
+  config,
+  pkgs-unstable,
+  lib,
   ...
 }:
 {
-  imports = [
-    inputs.worktrunk.homeModules.default
-  ];
-
-  # worktrunk — upstream's home-manager module installs the package and
-  # wires `eval "$(wt config shell init bash)"` into bash.initExtra. Hooks
-  # and aliases still live in ~/.config/worktrunk/config.toml below.
-  programs.worktrunk = {
-    enable = true;
-    enableBashIntegration = true;
+  options.programs.worktrunk.autoAllowDirenv = lib.mkOption {
+    type = lib.types.bool;
+    default = true;
+    description = "Automatically approve .envrc files in newly created worktrees.";
   };
+
+  config.home.packages = [ pkgs-unstable.worktrunk ];
+
+  config.programs.bash.initExtra = ''
+    eval "$(${lib.getExe pkgs-unstable.worktrunk} config shell init bash)"
+  '';
 
   # worktrunk — `wt switch --create <branch>` spins up a new worktree as a
   # sibling dir (default template) and fires this pre-start hook, which
   # creates a dedicated tmux session for it and drops the current client
   # into it. `wt remove` / `wt merge` reverse the whole thing.
-  home.file.".config/worktrunk/config.toml".text = ''
+  config.home.file.".config/worktrunk/config.toml".text = ''
     # Worktrunk shell-escapes hook variables; leave them unquoted.
 
-    # Array-of-tables (`[[pre-start]]`) runs steps serially, in order.
-    # worktrunk deprecated the named-key table form (`[pre-start]` with
-    # `tmux`/`direnv` keys) — it warns on every `wt` invocation and will
-    # flip that form's execution from serial to parallel. `[[pre-start]]`
-    # blocks pin the serial ordering: create the session first, then
-    # direnv-allow the worktree it lives in.
+    # Array-of-tables keeps pre-start steps serial: session creation
+    # completes before any optional direnv approval.
     [[pre-start]]
     tmux = """
-    # Delegate session creation to sesh (base.nix) rather than a raw
-    # `tmux new-session`, so worktree sessions get the same treatment as
-    # every other session here: sesh's git-aware namer (which maps `.`
-    # and `:` to `_`, so a `nix-config.test` worktree becomes the
-    # tmux-safe `nix-config_test`), zoxide registration, and any
-    # configured startup command. sesh switches the client when $TMUX is
-    # set and attaches otherwise, so no explicit switch-client is needed.
+    # sesh supplies git-aware session naming, zoxide registration, and
+    # any configured startup command. It switches the client when $TMUX
+    # is set and attaches otherwise.
     sesh connect {{ worktree_path }}
     """
 
-    [[pre-start]]
-    # Guarded on .envrc presence so worktrees in non-direnv repos don't
-    # error. `direnv allow` accepts a path and resolves the .envrc itself.
-    direnv = """
-    [ -f {{ worktree_path }}/.envrc ] && direnv allow {{ worktree_path }} || true
-    """
+    ${lib.optionalString config.programs.worktrunk.autoAllowDirenv ''
+      [[pre-start]]
+      # Guarded on .envrc presence so worktrees in non-direnv repos don't
+      # error. `direnv allow` accepts a path and resolves the .envrc itself.
+      direnv = """
+      [ -f {{ worktree_path }}/.envrc ] && direnv allow {{ worktree_path }} || true
+      """
+    ''}
 
-    # Session teardown runs post-remove, not pre-remove: `wt remove`'s
-    # default background path renames the worktree into `.git/wt/trash/`,
-    # prunes metadata and deletes the branch synchronously, then spawns a
-    # detached `rm -rf` to delete the files. A pre-remove `kill-session`
-    # tears down the very session `wt remove` runs in, SIGHUPing `wt`
-    # after the prune but before it spawns that `rm` — so the branch and
-    # session vanish while the directory survives in trash. post-remove
-    # hooks run detached after the `rm` is already spawned, so the delete
-    # completes first and the session dies last.
+    # A pre-remove kill-session can SIGHUP wt before it spawns the
+    # detached file deletion, leaving the directory in .git/wt/trash.
+    # post-remove runs detached after removal has been started, so
+    # closing the session cannot interrupt that handoff.
     [post-remove]
     tmux = """
-    # Must match the name sesh generated in pre-start: its default namer
-    # is the basename with `.` and `:` mapped to `_`.
-    S=$(basename {{ worktree_path }} | tr '.:' '_')
-    tmux kill-session -t "=$S" 2>/dev/null || true
+    # sesh records the worktree as session_path, which survives renaming
+    # the session and removing the directory. Session names can change.
+    tmux list-sessions -F '#{session_id} #{session_path}' 2>/dev/null |
+      while read -r session path; do
+        if [ "$path" = {{ worktree_path }} ]; then
+          tmux kill-session -t "$session"
+        fi
+      done
     """
 
     # Short aliases. Aliases run as shell commands (not as wt subcommand

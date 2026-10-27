@@ -186,8 +186,7 @@ in
   home.homeDirectory = "/home/${username}";
 
   home.packages = with pkgs; [
-    # Bencher CLI — built from upstream's flake (see flake.nix `bencher` input).
-    inputs.bencher.packages.${pkgs.stdenv.hostPlatform.system}.default
+    pkgs-unstable.bencher-cli
     ripgrep
     htop
     jq
@@ -452,6 +451,7 @@ in
     # each module's format string. Palette values verbatim from
     # github.com/catppuccin/starship.
     settings = {
+      aws.disabled = true;
       gcloud.disabled = true;
       palette = "catppuccin_mocha";
       palettes.catppuccin_mocha = {
@@ -667,20 +667,10 @@ in
       bind-key -N "» nav pane up (smart-splits)"    -n C-k if -F '#{@pane-is-vim}' 'send-keys C-k' "if -F '#{pane_at_top}'    '''   'select-pane -U'"
       bind-key -N "» nav pane right (smart-splits)" -n C-l if -F '#{@pane-is-vim}' 'send-keys C-l' "if -F '#{pane_at_right}'  '''   'select-pane -R'"
 
-      # Extended-keys plumbing for modern Ctrl+Shift+<letter> bindings.
-      # Kept on (no bindings using it yet) because nvim benefits from it
-      # independently — nvim negotiates its own keyboard protocol via
-      # tmux passthrough and gains distinct C-S-<letter> handling that
-      # way. Handy starting point when we want to re-add far-nav bindings.
-      #
-      # When wiring tmux-side bindings for these keys (e.g. C-S-h to jump
-      # to `{left}` pane), Ghostty↔tmux negotiation has to actually land;
-      # on last attempt Ghostty stayed in legacy mode for shell panes
-      # (sending 0x08 for Ctrl+Shift+h) despite the settings below. Debug
-      # with `tmux -vvvv` to see what escape sequence tmux sends at start,
-      # and compare with Ghostty's supported protocols (CSI-u/fixterms
-      # first-class, modifyOtherKeys partial, kitty keyboard).
-      set -s extended-keys on
+      # Preserve Shift+Enter even when a TUI does not enable extended keys
+      # or resets its keyboard mode. Mode 1 keeps standard control keys in
+      # their legacy form; applications can still request mode 2.
+      set -s extended-keys always
       set -s extended-keys-format csi-u
       set -as terminal-features 'xterm*:extkeys'
 

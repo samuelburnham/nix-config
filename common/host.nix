@@ -142,10 +142,8 @@
     age.keyFile = "/home/${username}/.config/sops/age/keys.txt";
 
     secrets = {
-      # GitHub PAT for the dev microvm (scope in home/profiles/dev-vm.nix),
-      # which pushes branches with it. The host keeps the decrypted
-      # file solely so ssh-dev-vm can forward it; host shells and the host Nix
-      # daemon authenticate independently.
+      # Scoped GitHub PAT forwarded over SSH to the dev VM and bench boxes.
+      # Host shells and the host Nix daemon authenticate independently.
       gh-token = {
         mode = "0400";
         owner = username;
