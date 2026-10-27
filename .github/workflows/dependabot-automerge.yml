@@ -1,8 +1,11 @@
 name: dependabot-automerge
 
 # Queue GitHub auto-merge on non-major Dependabot updates. The PR merges
-# only once branch protection's required checks pass; majors stay manual.
-# Enabling it with a PAT, not GITHUB_TOKEN, lets the merge trigger `cache`.
+# only once the ruleset's required checks pass; majors stay manual.
+#
+# GITHUB_TOKEN suffices: Dependabot only bumps workflow pins, which leave the
+# system closures unchanged, so the merge not triggering `cache` costs
+# nothing. The token is scoped to this run and cannot bypass the ruleset.
 
 on: pull_request
 
@@ -14,12 +17,15 @@ jobs:
     name: Enable auto-merge
     # The PR author, unlike github.actor, cannot be spoofed by a re-run.
     if: github.event.pull_request.user.login == 'dependabot[bot]'
+    permissions:
+      contents: write
+      pull-requests: write
     runs-on: ubuntu-latest
     steps:
       - id: metadata
         uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
       - if: steps.metadata.outputs.update-type != 'version-update:semver-major'
         env:
-          GH_TOKEN: ${{ secrets.UPDATE_PAT }}
+          GH_TOKEN: ${{ github.token }}
           PR_URL: ${{ github.event.pull_request.html_url }}
         run: gh pr merge --auto --squash "$PR_URL"

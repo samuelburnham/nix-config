@@ -18,12 +18,20 @@ jobs:
         with:
           persist-credentials: false
       - uses: DeterminateSystems/determinate-nix-action@d0c908e6cbe9f89f36ed8205a3ab6f092636916a # v3.23.1
+      # An app token, unlike GITHUB_TOKEN, lets the PR trigger `check` and
+      # the auto-merge push trigger `cache`. The app is not a ruleset bypass
+      # actor, so the token can only reach main through checked PRs.
+      - id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ secrets.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
       - id: update
         uses: DeterminateSystems/update-flake-lock@da03c0f078bc4b2c37ee4f7e072d34bf8f188bb3 # v29
         with:
-          # A PAT, unlike GITHUB_TOKEN, lets the PR trigger `check` and the
-          # auto-merge push trigger `cache`.
-          token: ${{ secrets.UPDATE_PAT }}
+          token: ${{ steps.app-token.outputs.token }}
           pr-title: "chore(flake): Update flake.lock"
           commit-msg: "chore(flake): Update flake.lock"
           pr-labels: |
@@ -33,6 +41,6 @@ jobs:
       - name: Enable auto-merge
         if: steps.update.outputs.pull-request-url != ''
         env:
-          GH_TOKEN: ${{ secrets.UPDATE_PAT }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
           PR_URL: ${{ steps.update.outputs.pull-request-url }}
         run: gh pr merge --auto --squash "$PR_URL"
