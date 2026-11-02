@@ -93,11 +93,9 @@ in
     # release that breaks something; a standing pin drifts further behind than
     # the lag it was meant to avoid.
     #
-    # Routed through `package` rather than home.packages because `lspServers`
-    # below only takes effect when the module can wrap the binary: it builds a
-    # symlinkJoin launcher that injects `--plugin-dir` (carrying the generated
-    # .lsp.json) and refuses a null package. The module adds that wrapper to
-    # home.packages itself, so it must not also be listed there by hand.
+    # Leave `lspServers`, `mcpServers` and `plugins` unset: any of them makes
+    # the module wrap the binary, and the wrapped process reports argv[0] as
+    # `.claude-wrapped`, which tmux-assistant-resurrect does not recognize.
     package = pkgs-master.claude-code;
     settings = {
       theme = "dark";
@@ -296,24 +294,6 @@ in
             ];
           }
         ];
-      };
-    };
-    # rust-analyzer for `.rs` files, giving claude LSP diagnostics and code
-    # intelligence. The module serializes this to a .lsp.json inside the
-    # `--plugin-dir` it wraps the binary with (see `package` above) — there is
-    # no settings.json key for it, so it lives here rather than under `settings`.
-    #
-    # `command` is a bare name resolved from PATH at spawn — NOT via `direnv
-    # exec` like the rustfmt hook above — so the server only starts when claude
-    # is launched from a direnv-activated devshell that provides rust-analyzer.
-    # We deliberately don't install it globally; on hosts/repos without it on
-    # PATH the spawn just fails and is skipped, rather than erroring the session.
-    lspServers = {
-      rust-analyzer = {
-        command = "rust-analyzer";
-        extensionToLanguage = {
-          ".rs" = "rust";
-        };
       };
     };
     context = sharedContext + ''
