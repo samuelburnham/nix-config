@@ -943,6 +943,18 @@ in
       -- following it to the destination workspace either way.
       hl.bind(mod .. " + ALT + S", scratch_toggle)
 
+      -- Cycle focus through every window on the active workspace, tiled
+      -- and floating alike, raising each one so a window buried under a
+      -- floater surfaces as it's reached. +Shift cycles backwards.
+      local function cycle_workspace(next)
+        return function()
+          hl.dispatch(hl.dsp.window.cycle_next({ next = next }))
+          hl.dispatch(hl.dsp.window.bring_to_top())
+        end
+      end
+      hl.bind(mod .. " + Tab", cycle_workspace(true))
+      hl.bind(mod .. " + SHIFT + Tab", cycle_workspace(false))
+
       hl.bind(mod .. " + mouse_down", hl.dsp.focus({ workspace = "e+1" }))
       hl.bind(mod .. " + mouse_up", hl.dsp.focus({ workspace = "e-1" }))
 
@@ -1910,6 +1922,27 @@ in
         "*-*-* 06:30:00"
         "*-*-* 20:00:00"
       ];
+      Persistent = true;
+    };
+    Install.WantedBy = [ "timers.target" ];
+  };
+
+  # GNOME's `remove-old-trash-files` is acted on by its housekeeping daemon,
+  # which never runs in this session, so the trash would otherwise grow
+  # forever. trash-cli ages entries by the deletion date recorded in each
+  # .trashinfo, not by file mtime, which is why it is used instead of a
+  # systemd-tmpfiles age rule.
+  systemd.user.services.trash-empty = {
+    Unit.Description = "Delete trashed files older than 30 days";
+    Service = {
+      Type = "oneshot";
+      ExecStart = "${pkgs.trash-cli}/bin/trash-empty 30";
+    };
+  };
+  systemd.user.timers.trash-empty = {
+    Unit.Description = "Weekly purge of trashed files older than 30 days";
+    Timer = {
+      OnCalendar = "weekly";
       Persistent = true;
     };
     Install.WantedBy = [ "timers.target" ];
