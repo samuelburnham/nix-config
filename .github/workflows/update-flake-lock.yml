@@ -18,9 +18,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: DeterminateSystems/determinate-nix-action@92957199488000b908fdad19f63711000965d8f3 # v3.24.1
-      # An app token, unlike GITHUB_TOKEN, lets the PR trigger `check` and
-      # the auto-merge push trigger `cache`. The app is not a ruleset bypass
-      # actor, so the token can only reach main through checked PRs.
+      # An App token lets the PR trigger `check` and its merge trigger `cache`.
       - id: app-token
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:

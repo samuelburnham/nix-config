@@ -1,13 +1,13 @@
 name: dependabot-automerge
 
 # Queue GitHub auto-merge on non-major Dependabot updates. The PR merges
-# only once the ruleset's required checks pass; majors stay manual.
-#
-# GITHUB_TOKEN suffices: Dependabot only bumps workflow pins, which leave the
-# system closures unchanged, so the merge not triggering `cache` costs
-# nothing. The token is scoped to this run and cannot bypass the ruleset.
+# only once branch protection's required checks pass; majors stay manual.
+# Dependabot only updates action pins, leaving Nix derivations unchanged.
+# GITHUB_TOKEN suppresses push-triggered builds after these merges.
 
-on: pull_request
+on:
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: read
@@ -16,7 +16,9 @@ jobs:
   automerge:
     name: Enable auto-merge
     # The PR author, unlike github.actor, cannot be spoofed by a re-run.
-    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    if: >-
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository
     permissions:
       contents: write
       pull-requests: write

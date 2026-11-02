@@ -130,6 +130,12 @@
           # home-manager CLI install on the target.
           packages.sam = self.homeConfigurations.sam.activationPackage;
 
+          checks = {
+            desktop = self.nixosConfigurations.nixos.config.system.build.toplevel;
+            laptop = self.nixosConfigurations.nixbook.config.system.build.toplevel;
+            home = self.homeConfigurations.sam.activationPackage;
+          };
+
           # Root-owned Claude deny policy for non-NixOS targets (the Ubuntu
           # box), which can't use environment.etc. The box has sudo, so
           # provisioning installs it under root out of band — the per-user

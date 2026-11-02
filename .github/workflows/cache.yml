@@ -17,38 +17,26 @@ concurrency:
 
 jobs:
   build:
-    name: "Build and cache ${{ matrix.name }}"
+    name: Build and cache configurations
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: desktop + dev microVM
-            target: nixosConfigurations.nixos.config.system.build.toplevel
-          - name: laptop
-            target: nixosConfigurations.nixbook.config.system.build.toplevel
-          - name: home + Neovim
-            target: sam
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Free space for system closures
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          df -h /
       - uses: DeterminateSystems/determinate-nix-action@92957199488000b908fdad19f63711000965d8f3 # v3.24.1
       - uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866 # v17
         with:
           name: samuelburnham
           authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
           useDaemon: true
-      - name: Build configuration
-        env:
-          NIX_TARGET: ${{ matrix.target }}
-        run: nix build --accept-flake-config --no-write-lock-file --print-build-logs ".#$NIX_TARGET"
+      - name: Build configurations
+        run: |
+          nix build --accept-flake-config --no-update-lock-file --print-build-logs --print-out-paths \
+            '.#nixosConfigurations.nixos.config.system.build.toplevel' \
+            '.#nixosConfigurations.nixbook.config.system.build.toplevel' \
+            '.#sam' > "$RUNNER_TEMP/cache-store-paths"
       # The daemon caches intermediate builds; this also covers substituted roots.
-      - name: Push configuration closure
+      - name: Push configuration closures
         env:
           CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
-        run: cachix push samuelburnham ./result
+        run: cachix push samuelburnham < "$RUNNER_TEMP/cache-store-paths"

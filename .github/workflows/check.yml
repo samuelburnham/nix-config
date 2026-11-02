@@ -3,8 +3,6 @@ name: check
 on:
   pull_request:
     branches: [main]
-  push:
-    branches: [main]
 
 permissions:
   contents: read
@@ -31,7 +29,4 @@ jobs:
         with:
           persist-credentials: false
       - uses: DeterminateSystems/determinate-nix-action@92957199488000b908fdad19f63711000965d8f3 # v3.24.1
-      # Eval-only: catches syntax errors, bad option names, and broken
-      # module wiring across both hosts, the microvm guest, and the
-      # standalone HM/nvim outputs without building any derivations.
-      - run: nix flake check --no-build .
+      - run: nix flake check --accept-flake-config --no-update-lock-file --print-build-logs
