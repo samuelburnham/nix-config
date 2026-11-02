@@ -90,37 +90,6 @@ in
     ];
   };
 
-  # The guest can consume 48 GiB of host RAM. Suspend needs additional host
-  # memory for amdgpu VRAM eviction; under memory pressure this can fail after
-  # the display is already off. Stop the guest before every suspend entry
-  # point to release that memory.
-  #
-  # sleep-actions.service is ordered Before=sleep.target, so the stop below
-  # completes — memory genuinely returned — before the kernel suspends. The
-  # `is-active` probe and the stop have to sit in one sequential script: a
-  # declarative Conflicts=sleep.target on the unit would stop the VM
-  # concurrently with this script, and the probe would then race a unit already
-  # reading as "deactivating" and lose the state needed to restore it.
-  powerManagement.powerDownCommands = ''
-    if ${pkgs.systemd}/bin/systemctl is-active --quiet microvm@${vmName}.service; then
-      ${pkgs.coreutils}/bin/touch /run/microvm-${vmName}-restore
-      ${pkgs.systemd}/bin/systemctl stop microvm@${vmName}.service
-    fi
-  '';
-
-  # Bring it back on resume, but only when the suspend is what took it down —
-  # a VM stopped by hand to free RAM stays stopped. The flag lives on /run, so
-  # a crash between the two hooks resolves itself at the next boot.
-  #
-  # --no-block because microvm@ is Type=notify: a blocking start would hold the
-  # resume path until the guest finished booting and sent READY.
-  powerManagement.resumeCommands = ''
-    if [ -e /run/microvm-${vmName}-restore ]; then
-      ${pkgs.coreutils}/bin/rm -f /run/microvm-${vmName}-restore
-      ${pkgs.systemd}/bin/systemctl --no-block start microvm@${vmName}.service
-    fi
-  '';
-
   microvm.vms.${vmName} =
     let
       system = "x86_64-linux";
