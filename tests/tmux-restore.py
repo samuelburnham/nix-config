@@ -1,10 +1,8 @@
 """Focused restore checks: python3 tmux-restore.py <evaluated-config.json>."""
 
-import importlib.util
 import json
 import os
 from pathlib import Path
-import re
 import shlex
 import subprocess
 import sys
@@ -13,41 +11,6 @@ import threading
 import time
 
 sys.dont_write_bytecode = True
-
-
-def check_process_sessions(root):
-    source = Path(__file__).resolve().parents[1] / "home/modules/tmux/codex-process-session.py"
-    spec = importlib.util.spec_from_file_location("codex_session", source)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    home = root / "codex home"
-    sessions = home / "sessions"
-    sessions.mkdir(parents=True)
-    proc = root / "proc"
-    ids = [f"00000000-0000-4000-8000-{i:012d}" for i in range(1, 5)]
-    paths = []
-    for index, sid in enumerate(ids):
-        path = sessions / f"rollout-{sid}.jsonl"
-        source = "cli" if index != 2 else {"subagent": {"other": "guardian"}}
-        path.write_text(json.dumps({"type": "session_meta", "payload": {
-            "id": sid, "source": source, "cwd": "/same/project"
-        }}) + "\n")
-        paths.append(path)
-    for pid, transcript in [(100, paths[0]), (200, paths[1])]:
-        process = proc / str(pid)
-        (process / "fd").mkdir(parents=True)
-        (process / "stat").write_text(f"{pid} (codex) " + " ".join(["1"] * 20))
-        (process / "environ").write_bytes(b"CODEX_HOME=" + os.fsencode(home) + b"\0")
-        (process / "fd/1").symlink_to(transcript)
-        (process / "fd/2").symlink_to(paths[2])
-    assert module.process_session(100, proc) == ids[0]
-    assert module.process_session(200, proc) == ids[1]
-    (proc / "100/fd/3").symlink_to(paths[3])
-    assert module.process_session(100, proc) is None, "Ambiguous roots must not be guessed"
-    (proc / "200/fd/1").unlink()
-    assert module.process_session(200, proc) is None, "A guardian is not a root session"
-    assert module.process_session(999, proc) is None
-    print("PASS: exact per-process Codex IDs, guardian exclusion, ambiguity and missing processes", flush=True)
 
 
 def check_boot(config, root):
@@ -130,18 +93,6 @@ def check_boot(config, root):
             entries.append(dict(pane=f"{name}:0.0", session_name=name, window_index="0", pane_index="0",
                                 tool=tool, session_id=ids[index], cwd=str(root),
                                 cli_args="--plugin-dir /stale/plugin --model test-model" if tool == "claude" else ""))
-            if tool == "claude":
-                project = re.sub("[^a-zA-Z0-9]", "-", str(root))
-                transcript = home / ".claude/projects" / project / f"{ids[index]}.jsonl"
-                transcript.parent.mkdir(parents=True, exist_ok=True)
-                transcript.write_text("{}\n")
-        save_script = re.search(r"bash '([^']+/scripts/save-assistant-sessions.sh)'", config["hooks"]).group(1)
-        lookup = 'source "$1"; get_claude_session 999999999 "$2" "$3"'
-        assert not run("bash", "-c", lookup, "claude-lookup", save_script, "claude", str(root)), \
-            "A missing Claude process record must not select another pane's transcript"
-        assert run("bash", "-c", lookup, "claude-lookup", save_script,
-                   f"claude --resume {ids[0]}", str(root)) == ids[0]
-        print("PASS: Claude keeps explicit session IDs and never guesses from a shared directory", flush=True)
         (snapshots / "assistant-sessions.json").write_text(json.dumps({"sessions": entries}))
         command("kill-server")
         wait_for(lambda: not Path(f"/proc/{pid}").exists() or "\nState:\tZ" in Path(f"/proc/{pid}/status").read_text())
@@ -207,5 +158,4 @@ if __name__ == "__main__":
     config = json.loads(Path(sys.argv[1]).read_text())
     with tempfile.TemporaryDirectory(prefix="tmux-restore-test-") as directory:
         root = Path(directory)
-        check_process_sessions(root)
         check_boot(config, root)

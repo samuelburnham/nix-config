@@ -1,28 +1,3 @@
---- a/scripts/save-assistant-sessions.sh
-+++ b/scripts/save-assistant-sessions.sh
-@@ -285,7 +285,8 @@
- 	local claude_pid="$1"
- 	local args="$2"
- 	local cwd="${3:-}"
--	local allow_transcript_fallback="${4:-1}"
-+	# A shared directory cannot identify which conversation owns this pane.
-+	local allow_transcript_fallback=0
- 
- 	# Method 1: SessionStart hook state file (keyed by Claude PID).
- 	# The hook walks up the process tree to find the main 'claude' process,
-@@ -719,6 +720,12 @@
- 
- get_codex_session() {
- 	local child_pid="$1"
-+	# Directory recency can select another pane or a guardian subagent.
-+	# Linux exposes the exact root rollout held open by this process.
-+	if [ -d /proc ]; then
-+		python3 "$PY_DIR/codex_process.py" "$child_pid"
-+		return
-+	fi
- 	local args="$2"
- 	local cwd="${3:-}"
- 
 --- a/scripts/restore-assistant-sessions.sh
 +++ b/scripts/restore-assistant-sessions.sh
 @@ -51,6 +51,8 @@

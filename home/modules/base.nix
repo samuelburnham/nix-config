@@ -82,32 +82,11 @@ let
     esac
   '';
 
-  # Claude only retains transcripts with content, and may prune older ones.
-  # A tracked ID can therefore outlive the conversation it names.
-  resumeGuardLib = pkgs.writeText "lib-resume-guard.sh" ''
-    # Emit the command the restore hook sends to a pane: a normal --resume when
-    # the session's transcript still exists, else a warning then a fresh claude.
-    # $1=base command, $2=quoted session id, $3=raw session id, $4=cwd. Claude's
-    # project-dir name is the cwd with every non-alphanumeric mapped to a dash.
-    _claude_resume_cmd() {
-      local proj transcript warn
-      proj=$(printf '%s' "$4" | sed 's#[^a-zA-Z0-9]#-#g')
-      transcript="$HOME/.claude/projects/$proj/$3.jsonl"
-      if [ -s "$transcript" ]; then
-        printf '%s --resume %s' "$1" "$2"
-      else
-        warn="tmux-assistant-resurrect: saved session $3 has no transcript, starting a fresh claude"
-        printf 'echo %s; sleep 2; %s' "$(posix_quote "$warn")" "$1"
-      fi
-    }
-  '';
   tmux-assistant-resurrect-scripts =
     pkgs.runCommand "tmux-assistant-resurrect-patched" { nativeBuildInputs = [ pkgs.patch ]; } ''
       cp -r ${inputs.tmux-assistant-resurrect} "$out"
       chmod -R u+w "$out"
       patch -d "$out" -p1 < ${./tmux/assistant.patch}
-      cp ${resumeGuardLib} "$out/scripts/lib-resume-guard.sh"
-      cp ${./tmux/codex-process-session.py} "$out/scripts/py/codex_process.py"
 
       for script in save-assistant-sessions.sh restore-assistant-sessions.sh; do
         substituteInPlace "$out/scripts/$script" \
@@ -130,11 +109,6 @@ let
         ]
       }:$PATH"'
       done
-
-      substituteInPlace "$out/scripts/restore-assistant-sessions.sh" \
-        --replace-fail 'source "$SCRIPT_DIR/lib-detect.sh"' 'source "$SCRIPT_DIR/lib-detect.sh"; source "$SCRIPT_DIR/lib-resume-guard.sh"' \
-        --replace-fail 'resume_cmd="command claude''${safe_cli_args}''${safe_model_arg} --resume ''${safe_sid}"' 'resume_cmd=$(_claude_resume_cmd "command claude''${safe_cli_args}''${safe_model_arg}" "''${safe_sid}" "''${session_id}" "''${cwd}")' \
-        --replace-fail 'resume_cmd="command claude --resume ''${safe_sid}"' 'resume_cmd=$(_claude_resume_cmd "command claude" "''${safe_sid}" "''${session_id}" "''${cwd}")'
     '';
 
   assistantResume = pkgs.writeShellScriptBin "assistant-resume" ''
