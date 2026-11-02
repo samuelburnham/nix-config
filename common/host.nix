@@ -245,6 +245,28 @@
   # Enable the OpenSSH daemon.
   # services.openssh.enable = true;
 
+  # Weekly store sweep, Monday morning ahead of the daily noon restic run
+  # (hosts/desktop/restic.nix) so the heavy store I/O is done before the
+  # backup starts. The dev microvm schedules its own sweep and boots from
+  # its own store image, so the two never interact. 60 days of system and
+  # home-manager generations stay available for rollback. Run early by
+  # hand with `sudo systemctl start nix-gc`.
+  nix.gc = {
+    automatic = true;
+    dates = "Mon 10:00";
+    options = "--delete-older-than 60d";
+  };
+
+  # journald's defaults bound the journal only by size (10% of the
+  # filesystem, at most 4G), never by age, so logs accumulated back to the
+  # install. Whichever limit is reached first wins; both apply at rotation,
+  # so `journalctl --vacuum-time=3months` is needed once to trim what is
+  # already on disk.
+  services.journald.extraConfig = ''
+    SystemMaxUse=1G
+    MaxRetentionSec=3month
+  '';
+
   networking.firewall.enable = true;
   # Open ports in the firewall.
   # networking.firewall.allowedTCPPorts = [ ... ];
