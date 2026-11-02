@@ -84,6 +84,10 @@ in
       approvals_reviewer = "auto_review";
       features.apps = false;
       features.fast_mode = true;
+      # C-l is pane navigation (tmux, nvim smart-splits); Codex's default
+      # clear_terminal on the same key fires by accident. An empty list
+      # unbinds the action; `/clear` remains for a deliberate wipe.
+      tui.keymap.global.clear_terminal = [ ];
       tui.status_line = [
         "model-with-reasoning"
         "current-dir"

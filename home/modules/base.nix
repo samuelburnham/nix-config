@@ -414,6 +414,10 @@ in
       # Ignore C-d at an empty prompt so a misclick doesn't exit bash (and
       # close Ghostty). C-Shift-w is the intentional close shortcut.
       set -o ignoreeof
+      # C-l is pane navigation (tmux and nvim smart-splits); readline's
+      # clear-screen on the same key fires by accident outside tmux, so
+      # unbind it. `clear` remains for the rare deliberate wipe.
+      bind -r '\C-l'
       # Bare `tmux` (outside an existing session) defaults to attaching
       # or creating a session named after the current directory, so
       # `prefix + s` shows real names instead of `0`/`1`/... Passes
@@ -667,6 +671,15 @@ in
       bind-key -N "» nav pane up (smart-splits)"    -n C-k if -F '#{@pane-is-vim}' 'send-keys C-k' "if -F '#{pane_at_top}'    '''   'select-pane -U'"
       bind-key -N "» nav pane right (smart-splits)" -n C-l if -F '#{@pane-is-vim}' 'send-keys C-l' "if -F '#{pane_at_right}'  '''   'select-pane -R'"
 
+      # C-S-h / C-S-l jump straight to the far-left / far-right pane using
+      # tmux's positional pane targets: `{left}` is the pane at the left
+      # edge on the window's middle row, `{right}` likewise. Ghostty reports
+      # Ctrl+Shift+letter under modifyOtherKeys as the uppercase letter, so
+      # the key is C-S-H, not C-S-h. tmux-level only: inside nvim this still
+      # moves between tmux panes, not nvim splits.
+      bind-key -N "» nav to leftmost pane"  -n C-S-H select-pane -t '{left}'
+      bind-key -N "» nav to rightmost pane" -n C-S-L select-pane -t '{right}'
+
       # Preserve Shift+Enter even when a TUI does not enable extended keys
       # or resets its keyboard mode. Mode 1 keeps standard control keys in
       # their legacy form; applications can still request mode 2.
@@ -781,6 +794,9 @@ in
 
   programs.git = {
     enable = true;
+    # Neovim writes its log to ./nvim.log when its state dir is unwritable,
+    # as in agent sandboxes.
+    ignores = [ "nvim.log" ];
     settings = {
       user = {
         name = "samuelburnham";

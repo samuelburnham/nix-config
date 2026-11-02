@@ -407,4 +407,18 @@ in
   # this merges into the module's home.file entry rather than colliding with
   # it as a second entry pointing at the same target.
   home.file."${config.programs.claude-code.configDir}/settings.json".force = true;
+
+  # Claude's default C-l (chat:clearInput) collides with C-h/j/k/l pane
+  # navigation and wipes a half-typed prompt by accident; the stray
+  # keypress should do nothing. Clear-input is not rebound anywhere.
+  home.file."${config.programs.claude-code.configDir}/keybindings.json".text = builtins.toJSON {
+    "$schema" = "https://www.schemastore.org/claude-code-keybindings.json";
+    "$docs" = "https://code.claude.com/docs/en/keybindings";
+    bindings = [
+      {
+        context = "Chat";
+        bindings."ctrl+l" = null;
+      }
+    ];
+  };
 }
