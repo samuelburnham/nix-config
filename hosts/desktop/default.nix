@@ -85,6 +85,8 @@
   users.users.${username}.extraGroups = [ "i2c" ];
   environment.systemPackages = [ pkgs.ddcutil ];
 
+  programs.steam.enable = true;
+
   # WiFi workarounds — neither solved poor connection after resuming from suspend
   # Solution: use Ethernet
   # networking.networkmanager.wifi = {

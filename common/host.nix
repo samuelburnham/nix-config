@@ -230,8 +230,6 @@
   # Increase `sudo` timeout to 30 minutes
   security.sudo.extraConfig = "Defaults timestamp_timeout=30";
 
-  programs.steam.enable = true;
-
   # Some programs need SUID wrappers, can be configured further or are
   # started in user sessions.
   # programs.mtr.enable = true;

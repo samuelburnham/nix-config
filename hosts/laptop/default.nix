@@ -31,8 +31,6 @@
 
   # TODO: Add battery percentage to top bar in Gnome
   # TODO: Switch to Hyprland
-  # TODO: Add an external-drive Steam library folder — internal SSD is
-  # tight on space
 
   # Hibernate with swapfile, from https://nixos.wiki/wiki/Hibernation
   # Create swapfile for extra RAM while programming and also for hibernation
