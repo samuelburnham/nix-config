@@ -156,8 +156,15 @@ let
     if [ "$boot" = 1 ]; then
       [ "$(tmux show-option -gqv @assistants_resumed)" != on ] || exit 0
     fi
+    # The patched script skips its client wait and settle sleep under
+    # TMUX_ASSISTANT_FAST_RESTORE; the per-pane delays are upstream options,
+    # zeroed here for the same reason and restored to their defaults after.
     export TMUX_ASSISTANT_FAST_RESTORE=1
+    tmux set-option -g @assistant-resurrect-clear-delay 0
+    tmux set-option -g @assistant-resurrect-launch-stagger 0
     bash ${tmux-assistant-resurrect-scripts}/scripts/restore-assistant-sessions.sh
+    tmux set-option -gu @assistant-resurrect-clear-delay
+    tmux set-option -gu @assistant-resurrect-launch-stagger
     tmux set-option -g @assistants_resumed on
   '';
 

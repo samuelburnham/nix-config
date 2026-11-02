@@ -1,6 +1,6 @@
 --- a/scripts/save-assistant-sessions.sh
 +++ b/scripts/save-assistant-sessions.sh
-@@ -348,7 +348,8 @@
+@@ -285,7 +285,8 @@
  	local claude_pid="$1"
  	local args="$2"
  	local cwd="${3:-}"
@@ -10,7 +10,7 @@
  
  	# Method 1: SessionStart hook state file (keyed by Claude PID).
  	# The hook walks up the process tree to find the main 'claude' process,
-@@ -705,6 +706,12 @@
+@@ -719,6 +720,12 @@
  
  get_codex_session() {
  	local child_pid="$1"
@@ -25,7 +25,7 @@
  
 --- a/scripts/restore-assistant-sessions.sh
 +++ b/scripts/restore-assistant-sessions.sh
-@@ -112,6 +112,8 @@
+@@ -51,6 +51,8 @@
  # not treat a zero-sleep return as proof nothing changed in the pane.
  wait_for_session_client() {
  	local pane_id="$1" client_wait=0
@@ -34,8 +34,8 @@
  	while [ "$(tmux list-clients -t "$pane_id" 2>/dev/null | wc -l)" -eq 0 ] && [ $client_wait -lt 50 ]; do
  		sleep 0.1
  		client_wait=$((client_wait + 1))
-@@ -165,7 +167,7 @@
- DROP_ENV=$(tmux show-option -gqv @assistant-resurrect-drop-env 2>/dev/null || true)
+@@ -121,7 +123,7 @@
+ _valid_delay "$LAUNCH_STAGGER" || LAUNCH_STAGGER=1
  
  # Wait for panes to be fully initialized after resurrect restore
 -sleep 2
@@ -43,21 +43,3 @@
  
  log "restoring $count assistant pane(s)..."
  
-@@ -647,7 +649,7 @@
- 		log "pane $pane disappeared while clearing, skipping"
- 		continue
- 	fi
--	sleep 0.3
-+	[ "${TMUX_ASSISTANT_FAST_RESTORE:-0}" = 1 ] || sleep 0.3
- 
- 	if ! tmux send-keys -t "$pane_id" "$full_cmd" Enter 2>/dev/null; then
- 		log "pane $pane disappeared before replay, skipping"
-@@ -658,7 +660,7 @@
- 	restored=$((restored + 1))
- 
- 	# Stagger launches to avoid overwhelming the system
--	sleep 1
-+	[ "${TMUX_ASSISTANT_FAST_RESTORE:-0}" = 1 ] || sleep 1
- done <"$tmpfile"
- 
- rm -f "$tmpfile"

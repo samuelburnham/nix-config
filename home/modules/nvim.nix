@@ -1811,41 +1811,6 @@ in
       ];
     };
 
-    # Anchor the footer at EOF, after virtual borders on the last text line.
-    pluginOverrides.obsidian-nvim = pkgs.vimUtils.buildVimPlugin {
-      name = "obsidian.nvim";
-      src = (inputs.mnw.lib.npinsToPluginsAttrs pkgs "${inputs.self}/npins/sources.json").obsidian-nvim;
-      patches = [
-        (pkgs.writeText "obsidian-footer-position.patch" ''
-          --- a/lua/obsidian/footer/init.lua
-          +++ b/lua/obsidian/footer/init.lua
-          @@ -42,7 +42,7 @@
-               local footer_format = Obsidian.opts.footer.format
-               ---@cast footer_format -nil
-               local display_text = note_status(buf, footer_format, update_backlinks)
-          -    local row0 = #vim.api.nvim_buf_get_lines(buf, 0, -2, false)
-          +    local row0 = vim.api.nvim_buf_line_count(buf)
-               local col0 = 0
-               local separator = Obsidian.opts.footer.separator
-               local hl_group = Obsidian.opts.footer.hl_group
-          @@ -55,5 +55,5 @@
-                 footer_chunks = { footer_contents }
-               end
-          -    local opts = { virt_lines = footer_chunks }
-          +    local opts = { virt_lines = footer_chunks, virt_lines_above = true }
-               vim.api.nvim_buf_clear_namespace(buf, ns_id, 0, -1)
-               vim.api.nvim_buf_set_extmark(buf, ns_id, row0, col0, opts)
-        '')
-      ];
-      nvimSkipModules = [
-        "minimal"
-        "obsidian.picker._telescope"
-        "obsidian.picker._snacks"
-        "obsidian.picker._fzf"
-        "obsidian.picker._mini"
-      ];
-    };
-
     lazy.plugins.obsidian-nvim = {
       # The shared editor package also runs on machines without the vault.
       enabled = lib.generators.mkLuaInline ''
