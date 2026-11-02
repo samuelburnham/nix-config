@@ -100,4 +100,12 @@
   all 24 logical CPUs deliberately, and CPUWeight on the microvm@dev unit
   already lets host UI processes outbid VM threads, so throttling by hand
   buys nothing the system isn't handling.
+
+  # GPU access from the sandbox
+
+  The command sandbox generally blocks the NVIDIA GPU: `nvidia-smi`
+  failing, an empty `/dev/nvidia*`, or CUDA reporting no device inside a
+  sandboxed command says nothing about the machine. Never conclude from
+  such a check that there is no GPU or that GPU code paths can be skipped;
+  run the probe outside the sandbox before deciding.
 ''
