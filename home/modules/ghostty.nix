@@ -4,6 +4,18 @@
 # gui.nix) rather than inlined so the config is easy to find and reuse.
 { config, ... }:
 {
+  # TODO (Ghostty 1.4+, once available on nixpkgs unstable):
+  # - Select unstable Ghostty (currently stable by default) and align VM/Ubuntu
+  #   terminfo; refresh terraform-server's snapshot, keeping /etc/terminfo for nvtop.
+  # - Consider +ssh in ssh-bench/ssh-dev-vm; opt-in shell integration does not
+  #   wrap these scripts. Avoid auto-installing over HM's terminfo symlinks.
+  # - Test cursor restoration through SSH/tmux/Neovim before removing the
+  #   PROMPT_COMMAND bar-cursor workaround; 1.4 fixes terminfo's cursor reset.
+  # - Review clipboard-read=allow: Kitty clipboard reads include images/HTML.
+  # - Check Ctrl+Shift+Up/Down's new prompt-navigation bindings.
+  # Highlights: compressed scrollback, faster resizing, notification
+  # deduplication, and security fixes.
+  # https://ghostty.org/docs/install/release-notes/1-4-0
   programs.ghostty = {
     enable = true;
     settings = {
