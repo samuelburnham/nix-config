@@ -43,7 +43,7 @@
       size = 32 * 1024;
     }
   ];
-  # Suspend with s2idle for fast resume, then hibernate (suspend-to-disk) after 30 min for low power mode. Requires pressing the power button to wake up
+  # Suspend with s2idle for fast resume, then hibernate (suspend-to-disk) after HibernateDelaySec below. Requires pressing the power button to wake up
   boot.kernelParams = [
     "mem_sleep_default=s2idle"
     "resume_offset=14559232"
@@ -70,6 +70,14 @@
   systemd.sleep.settings.Sleep = {
     AllowSuspendThenHibernate = "yes";
     HibernateDelaySec = "15m";
+  };
+
+  # Intel iHD VA-API driver for the Arc 140T media engine. Without it Firefox,
+  # mpv and GNOME decode video on the CPU cores, which costs several watts
+  # during playback on a 54 Wh pack.
+  hardware.graphics = {
+    enable = true;
+    extraPackages = with pkgs; [ intel-media-driver ];
   };
 
   # If using laptop as daily driver, consider setting max charge to 80% for battery health/longevity
