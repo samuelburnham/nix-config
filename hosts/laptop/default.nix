@@ -50,6 +50,12 @@
     # That wedges a PM kworker and, critically, leaves the port "busy" so
     # s2idle aborts on lid close. Masking the GPE stops the storm at boot.
     "acpi_mask_gpe=0x89"
+    # The FADT claims PCIe ASPM is unsupported, so the kernel leaves every
+    # link in L0 and the package never drops below C2, awake or in s2idle
+    # (intel_pmc_core reports zero C10 residency). Forcing ASPM lets the
+    # kernel put links into L1 substates.
+    "pcie_aspm=force"
+    "pcie_aspm.policy=powersupersave"
   ];
   # UUID of root ext4 partition
   boot.resumeDevice = "/dev/disk/by-uuid/e1746389-93c2-4f21-8086-f3b5e685413b";
