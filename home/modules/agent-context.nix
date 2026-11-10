@@ -108,4 +108,13 @@
   sandboxed command says nothing about the machine. Never conclude from
   such a check that there is no GPU or that GPU code paths can be skipped;
   run the probe outside the sandbox before deciding.
+
+  # Scratch space on GPU machines
+
+  On GPU machines `/tmp` is RAM-backed, and benchmarks need all available
+  RAM. When `/opt/dlami/nvme` exists, put scratch data and large
+  regenerable caches (KZG preprocessing, public parameters) there instead of
+  `/tmp` or `$TMPDIR`; fall back to `/tmp` only when it's absent. The NVMe
+  is instance storage and is wiped on stop, so keep `target/` and other
+  build artifacts in their usual place on persistent disk.
 ''
