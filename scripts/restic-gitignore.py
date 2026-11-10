@@ -93,7 +93,15 @@ def scan(root, git, output):
         if b".git" in directories or b".git" in files:
             if os.path.islink(os.path.join(repo, b".git")):
                 raise ValueError("symlinked .git metadata is unsupported")
-            for relative in git_ignored(git, repo):
+            # A broken or empty .git only costs this repository its exclusions,
+            # so back it up in full rather than abort the whole backup.
+            try:
+                ignored = git_ignored(git, repo)
+            except subprocess.CalledProcessError as error:
+                print(f"Backing up {os.fsdecode(repo)} without Git exclusions: "
+                      f"git exited with status {error.returncode}", file=sys.stderr)
+                ignored = []
+            for relative in ignored:
                 path = checked_path(root, repo, relative)
                 record = repo + b"\0" + relative + b"\0"
                 emitted += len(record)
