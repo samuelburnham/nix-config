@@ -608,6 +608,12 @@ in
         ];
         setupOpts = {
           modules.backlinks = false;
+          # Write the lowercase marker the Markdown formatter normalizes to;
+          # the uppercase one is still recognized as complete.
+          to_do.statuses.complete.marker = [
+            "x"
+            "X"
+          ];
           on_attach = lib.generators.mkLuaInline ''
             function(bufnr)
               local in_vault = (${markdownMappings})(bufnr)
