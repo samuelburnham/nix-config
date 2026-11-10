@@ -595,6 +595,11 @@ in
       # `*256col*` pattern above — without this, truecolor passes from
       # Ghostty *to* tmux but not *through* tmux to inner TUIs.
       set -as terminal-features ",xterm-ghostty:RGB"
+      # The server snapshots the environment of whatever process starts it.
+      # When that is a script or agent shell running with NO_COLOR=1 (e.g. a
+      # stray `tmux list-keys` auto-starting the server), every pane would
+      # inherit it and colored TUIs like Claude Code go monochrome.
+      set-environment -gu NO_COLOR
       set -g renumber-windows on
       # Windows and panes start at 1 instead of 0 — matches the number-row
       # keys (`prefix 1`, `prefix 2`, ...) used to jump between them, so
